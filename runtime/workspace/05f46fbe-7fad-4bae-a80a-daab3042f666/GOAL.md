@@ -1,3 +1,0 @@
-# Goal
-
-full-log-objective
