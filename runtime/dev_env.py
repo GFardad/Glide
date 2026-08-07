@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from runtime.logging import get_logger, log_event
+from runtime.manager.cto_manager import CTOManager, CTOManagerConfig
+from runtime.manager.decisions import DecisionEngine
 from runtime.observability.counters import increment
 
 __all__ = [
