@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from runtime.agents.runner import AgentContext, AgentRunner
-from runtime.glideloop_orchestrator.main import main as glideloop_run_main
-from runtime.glideloop_orchestrator.session import Session
 from runtime.logging import get_logger, log_event
 from runtime.mcp.server import handle_tool
 from runtime.meta.loop_a import ArtifactMeta, ArtifactStore, LoopAPromoter
@@ -21,15 +21,28 @@ from runtime.registry.agent import TodoRegistryAgent
 
 
 def test_e2e_glideloop_run_creates_session():
-    code = glideloop_run_main(["run", "demo-objective"])
-    assert code == 0
-    from runtime.glideloop_orchestrator.config import OrchestratorConfig
-    session_path = OrchestratorConfig().workspace_dir
-    session_dirs = [child for child in session_path.iterdir() if child.is_dir() and (child / "GOAL.md").exists()]
-    assert session_dirs, "expected at least one session directory with GOAL.md"
-    goal = session_dirs[0] / "GOAL.md"
-    assert goal.exists()
-    assert "demo-objective" in goal.read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory() as tmp:
+        env = os.environ.copy()
+        env["GLIDELOOP_ROOT"] = tmp
+        script = (
+            "import sys\n"
+            "sys.path.insert(0, '/home/gfardad/projects/glideloop')\n"
+            "from runtime.glideloop_orchestrator.main import main\n"
+            "main(['run', 'demo-objective'])\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        line = [line.strip() for line in result.stdout.strip().splitlines() if line.strip() and line.strip().startswith("started session=")][0]
+        session_id, _, cwd_str = line[len("started session=") :].partition(" cwd=")
+        cwd = Path(cwd_str)
+        assert cwd.exists()
+        assert (cwd / "GOAL.md").exists()
+        assert "demo-objective" in (cwd / "GOAL.md").read_text(encoding="utf-8")
 
 
 def test_e2e_session_runner_loop_b_integration():

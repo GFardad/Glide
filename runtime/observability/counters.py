@@ -22,6 +22,11 @@ class Counters:
     loop_a_promotions: int = 0
     loop_a_rollbacks: int = 0
     mcp_tool_calls: int = 0
+    production_sessions_created: int = 0
+    dev_sessions_created: int = 0
+    dev_approvals_started: int = 0
+    dev_approvals_completed: int = 0
+    releases_promoted: int = 0
 
 
 _COUNTERS = Counters()
