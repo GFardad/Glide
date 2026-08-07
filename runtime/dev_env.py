@@ -259,3 +259,36 @@ def create_dev_env(root: Optional[str | Path] = None) -> DevEnvironment:
 
 def get_dev_env(root: Optional[str | Path] = None) -> DevEnvironment:
     return DevEnvironment(root=root)
+
+
+def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Glideloop dev environment runtime")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("status", help="Show production/dev session status")
+
+    subparsers.add_parser("dev", help="Start/ensure dev CTO session")
+
+    promote_parser = subparsers.add_parser("promote", help="Promote dev branch to release")
+    promote_parser.add_argument("--tag", required=False, help="Release tag, e.g. release-2026.08.07")
+
+    args = parser.parse_args()
+    env = DevEnvironment()
+    if args.command == "status":
+        print(json.dumps(env.get_status(), indent=2))
+    elif args.command == "dev":
+        if not env.get_dev_session():
+            env.create_dev_session(f"dev-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}")
+        env.update_dev_status("running")
+        print("Dev CTO session started")
+    elif args.command == "promote":
+        version = env.promote_to_release(tag=args.tag)
+        if version is None:
+            print("Release promotion failed")
+            raise SystemExit(1)
+        print(f"Promoted {version}")
+
+
+if __name__ == "__main__":
+    main()

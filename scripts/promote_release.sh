@@ -15,10 +15,8 @@ if [[ "${answer}" != "yes" ]]; then
   exit 1
 fi
 
-git checkout main
-git merge dev --no-edit
-git tag -a "release-$(date +%Y.%m.%d-%H%M)" -m "Release promoted from dev"
-git push origin main --follow-tags
-git checkout dev
+read -rp "Release tag (default release-$(date +%Y.%m.%d)): " tag
+tag="${tag:-release-$(date +%Y.%m.%d)}"
 
-echo "Release promoted to main."
+PYTHONPATH="${PYTHONPATH:-${ROOT}}" python3 -m runtime.dev_env promote --tag "${tag}"
+echo "Release ${tag} promoted to main."
