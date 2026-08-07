@@ -57,12 +57,13 @@ TOOLS = [
         },
     },
     {
-        "name": "glideloop_meeting",
-        "description": "Run a CTO meeting room for an objective and return Plan + Architecture + Todos.",
+        "name": "meeting_room",
+        "description": "Run a personality-driven meeting room debate on an objective, moderated by CEO. Returns brief.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "objective": {"type": "string"},
+                "roles": {"type": "array", "items": {"type": "string"}, "default": ["architect", "engineer", "security", "qa", "product"]},
             },
             "required": ["objective"],
         },
@@ -232,18 +233,17 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
         payload = _list_todos(session_id)
         return json.dumps(payload, ensure_ascii=False)
 
-    if name == "glideloop_meeting":
+    if name == "meeting_room":
         increment("mcp_tool_calls")
-        objective = arguments.get("objective", "")
-        return json.dumps(
-            {
-                "objective": objective,
-                "plan": "Draft plan for " + objective,
-                "architecture": "Draft architecture for " + objective,
-                "todos": ["draft plan", "draft architecture"],
-            },
-            ensure_ascii=False,
-        )
+        try:
+            from runtime.meeting_room.meeting import MeetingRoom
+            objective = arguments.get("objective", "")
+            roles = arguments.get("roles", ["architect", "engineer", "security", "qa", "product"])
+            room = MeetingRoom(objective=objective, roles=roles)
+            brief = room.run()
+            return json.dumps({"status": "ok", **brief.__dict__}, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
 
     if name == "glideloop_quality":
         increment("mcp_tool_calls")

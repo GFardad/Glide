@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from runtime.dev_env import DevEnvironment, DevSession, ProductionSession
+from runtime.dev_env import DevEnvironment, DevSession
 from runtime.manager.decisions import DecisionEngine
 from runtime.logging import get_logger, log_event
 from runtime.observability.counters import increment
@@ -53,15 +53,9 @@ class CTOManager:
         logger.info("Registered team: %s", name)
 
     def start_dev_session(self, session_id: str | None = None) -> DevSession:
-        """Start a dev CTO session."""
+        """Start a dev session."""
         session = self._dev_env.create_dev_session(session_id or f"dev-{time.time_ns()}")
         log_event(logger, "dev_session_started", payload={"session_id": session.session_id})
-        return session
-
-    def start_production_session(self, session_id: str | None = None) -> ProductionSession:
-        """Start a production CTO session."""
-        session = self._dev_env.create_production_session(session_id or f"prod-{time.time_ns()}")
-        log_event(logger, "production_session_started", payload={"session_id": session.session_id})
         return session
 
     def check_teams(self) -> dict[str, Any]:

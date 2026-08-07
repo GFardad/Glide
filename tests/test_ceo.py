@@ -38,9 +38,8 @@ def test_ceo_execute_start_dev_session():
         assert dev["role"] == "dev_cto"
 
         prod = ceo.execute("start_production_session", {"session_id": "prod-1"})
-        assert prod["status"] == "ok"
-        assert prod["session_id"] == "prod-1"
-        assert prod["role"] == "production_cto"
+        assert prod["status"] == "error"
+        assert "User must not access production" in prod["detail"]
 
 
 def test_ceo_execute_merge_proposal():
@@ -73,3 +72,11 @@ def test_ceo_history():
         assert len(history) == 2
         assert history[0]["command"] == "register_team"
         assert history[1]["command"] == "check_teams"
+
+
+def test_ceo_execute_production_session_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        ceo = CEO(CEOConfig(state_dir=Path(tmp)))
+        result = ceo.execute("start_production_session", {"session_id": "prod-1"})
+        assert result["status"] == "error"
+        assert "User must not access production" in result["detail"]

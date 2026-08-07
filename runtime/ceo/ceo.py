@@ -48,6 +48,17 @@ class CEO:
         log_event(logger, "ceo_command_received", {"command": command, "payload": payload})
         result: dict[str, Any] = {"command": command, "status": "unknown"}
 
+        if command in ("start_production_session", "approve_dev", "promote_to_release", "link_sessions"):
+            result = {
+                "command": command,
+                "status": "error",
+                "detail": "User must not access production/dev control paths directly. All requests route through CEO.",
+            }
+            self._history.append(result)
+            self._save_history()
+            log_event(logger, "ceo_command_rejected", result)
+            return result
+
         if command == "register_team":
             name = payload.get("name")
             config = payload.get("config", {})
@@ -93,18 +104,6 @@ class CEO:
         elif command == "start_dev_session":
             session_id = payload.get("session_id")
             session = self.cto.start_dev_session(session_id)
-            result = {
-                "command": command,
-                "status": "ok",
-                "session_id": session.session_id,
-                "role": session.role,
-                "branch": session.branch,
-                "workspace": str(session.workspace),
-            }
-
-        elif command == "start_production_session":
-            session_id = payload.get("session_id")
-            session = self.cto.start_production_session(session_id)
             result = {
                 "command": command,
                 "status": "ok",

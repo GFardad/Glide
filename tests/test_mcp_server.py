@@ -53,12 +53,13 @@ def test_handle_glideloop_todos_list_with_items(tmp_path, monkeypatch):
     assert payload["todos"] == ["- [ ] task1", "- [x] task2"]
 
 
-def test_handle_glideloop_meeting():
-    payload = json.loads(handle_tool("glideloop_meeting", {"objective": "ship MVP"}))
+def test_handle_meeting_room():
+    payload = json.loads(handle_tool("meeting_room", {"objective": "ship MVP"}))
+    assert payload["status"] == "ok"
     assert payload["objective"] == "ship MVP"
-    assert "plan" in payload
-    assert "architecture" in payload
-    assert isinstance(payload["todos"], list)
+    assert payload["recommendation"] in {"accept", "accept_with_notes", "revise"}
+    assert isinstance(payload["roles_participated"], list)
+    assert payload["roles_participated"]
 
 
 def test_handle_glideloop_quality_missing_artifacts(tmp_path, monkeypatch):
