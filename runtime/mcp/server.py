@@ -100,6 +100,45 @@ TOOLS = [
         "description": "Get CEO command history.",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "version_create",
+        "description": "Create a new version manifest.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "version": {"type": "string"},
+                "codename": {"type": "string"},
+            },
+            "required": ["version"],
+        },
+    },
+    {
+        "name": "version_activate",
+        "description": "Activate a version for development.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "version": {"type": "string"},
+            },
+            "required": ["version"],
+        },
+    },
+    {
+        "name": "version_release",
+        "description": "Mark a version as released.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "version": {"type": "string"},
+            },
+            "required": ["version"],
+        },
+    },
+    {
+        "name": "version_list",
+        "description": "List all versions.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -254,6 +293,78 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
 
             ceo = CEO()
             return json.dumps({"status": "ok", "history": ceo.history()}, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "version_create":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.versioning.versioning import VersionLifecycle
+            from pathlib import Path
+
+            version = arguments.get("version")
+            codename = arguments.get("codename", "")
+            if not version:
+                return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
+            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            manifest = lifecycle.create_version(version, codename=codename)
+            return json.dumps({
+                "status": "ok",
+                "version": manifest.version,
+                "codename": manifest.codename,
+                "created_at": manifest.created_at,
+            }, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "version_activate":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.versioning.versioning import VersionLifecycle
+            from pathlib import Path
+
+            version = arguments.get("version")
+            if not version:
+                return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
+            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            manifest = lifecycle.activate_version(version)
+            return json.dumps({
+                "status": "ok",
+                "version": manifest.version,
+                "status": manifest.status,
+            }, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "version_release":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.versioning.versioning import VersionLifecycle
+            from pathlib import Path
+
+            version = arguments.get("version")
+            if not version:
+                return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
+            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            manifest = lifecycle.release_version(version)
+            return json.dumps({
+                "status": "ok",
+                "version": manifest.version,
+                "status": manifest.status,
+                "released_at": manifest.released_at,
+            }, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "version_list":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.versioning.versioning import VersionLifecycle
+            from pathlib import Path
+
+            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            versions = lifecycle.list_versions()
+            return json.dumps({"status": "ok", "versions": versions}, ensure_ascii=False)
         except Exception as exc:
             return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
 

@@ -109,3 +109,16 @@ def test_handle_ceo_history():
     payload = json.loads(handle_tool("ceo_history", {}))
     assert payload["status"] == "ok"
     assert isinstance(payload["history"], list)
+
+
+def test_handle_version_create(tmp_path):
+    version = "1.0.0-test-1763915520"
+    payload = json.loads(handle_tool("version_create", {"version": version, "codename": "alpha"}))
+    assert payload["status"] == "ok"
+    assert payload["version"] == version
+
+
+def test_handle_version_list():
+    payload = json.loads(handle_tool("version_list", {}))
+    assert payload["status"] == "ok"
+    assert "versions" in payload
