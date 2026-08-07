@@ -30,6 +30,7 @@ class Counters:
     manager_teams_registered: int = 0
     manager_escalations: int = 0
     manager_checks_run: int = 0
+    workspaces_created: int = 0
 
 
 _COUNTERS = Counters()

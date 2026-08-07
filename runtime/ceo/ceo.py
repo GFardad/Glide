@@ -1,41 +1,51 @@
-"""CEO runtime: user-facing orchestrator that talks to the CTO Manager."""
+"""Glideloop CEO runtime with persistent state and event emission."""
 
 from __future__ import annotations
 
-import json
 import logging
-import sys
+import os
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from runtime.manager.cto_manager import CTOManager, CTOManagerConfig
 from runtime.logging import get_logger, log_event
+from runtime.state import StateStore
 
 logger = get_logger("glideloop.ceo")
 
 
 @dataclass
 class CEOConfig:
-    """Configuration for the CEO runtime."""
-
     name: str = "Glideloop CEO"
     root: Path = Path("/home/gfardad/projects/glideloop")
     state_file: str = "/tmp/glideloop-ceo-state.json"
+    state_dir: Optional[Path] = None
 
 
 class CEO:
-    """Top-level orchestrator that talks to the CTO Manager on behalf of the user."""
-
     def __init__(self, config: CEOConfig | None = None) -> None:
         self.config = config or CEOConfig()
         self.cto = CTOManager(CTOManagerConfig(root=self.config.root))
         self._history: list[dict[str, Any]] = []
+        state_dir = self.config.state_dir
+        if state_dir is None:
+            state_dir = Path(os.environ.get("GLIDELOOP_STATE", "/tmp/glideloop-state"))
+        self._store = StateStore(state_dir)
+        self._load_history()
+
+    def _load_history(self) -> None:
+        stored = self._store.get("ceo", "history")
+        if stored:
+            self._history = stored.get("history", [])
+
+    def _save_history(self) -> None:
+        self._store.set("ceo", "history", {"history": self._history}, ttl_seconds=3600)
 
     def execute(self, command: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Execute a high-level CEO command."""
         payload = payload or {}
-        log_event(logger, "ceo_command_received", payload={"command": command, "payload": payload})
+        log_event(logger, "ceo_command_received", {"command": command, "payload": payload})
         result: dict[str, Any] = {"command": command, "status": "unknown"}
 
         if command == "register_team":
@@ -121,9 +131,9 @@ class CEO:
             result = {"command": command, "status": "error", "detail": f"unknown command: {command}"}
 
         self._history.append(result)
-        log_event(logger, "ceo_command_completed", payload=result)
+        self._save_history()
+        log_event(logger, "ceo_command_completed", result)
         return result
 
     def history(self) -> list[dict[str, Any]]:
-        """Return executed command history."""
         return list(self._history)

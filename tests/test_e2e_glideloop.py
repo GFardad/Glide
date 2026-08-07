@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import json
 from pathlib import Path
 
 import pytest
@@ -73,7 +74,7 @@ def test_e2e_structured_logging_writes_jsonl(tmp_path):
     assert log_file.exists()
     lines = [line for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(lines) == 1
-    payload = eval(lines[0], {}, {})
+    payload = json.loads(lines[0])
     assert payload["message"] == "e2e_event"
     assert payload["payload"] == {"check": "ok"}
 

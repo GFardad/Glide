@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from runtime.logging import get_logger, log_event
 from runtime.observability.counters import increment
+from runtime.quality.gates import PromotionGate
 
 __all__ = [
     "BranchStatus",
@@ -206,7 +207,12 @@ class DevEnvironment:
         self.update_production_status("approving")
         log_event(_LOGGER, "dev_approval_started", {"dev_session_id": dev.session_id})
         increment("dev_approvals_started")
-        # TODO: run quality gates on dev branch
+        gate = PromotionGate(self.root)
+        checks = gate.check()
+        if not checks["accepted"]:
+            log_event(_LOGGER, "dev_approval_rejected", {"dev_session_id": dev.session_id, "checks": checks})
+            self.update_production_status("idle")
+            return False
         self.update_production_status("idle")
         log_event(_LOGGER, "dev_approved", {"dev_session_id": dev.session_id})
         increment("dev_approvals_completed")

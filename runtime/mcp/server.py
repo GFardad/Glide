@@ -268,9 +268,11 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
             return json.dumps({"status": "error", "detail": "command required"}, ensure_ascii=False)
         try:
             from runtime.ceo.ceo import CEO
+            from runtime.events import emit
 
             ceo = CEO()
             result = ceo.execute(command, payload)
+            emit("ceo_command_completed", result)
             return json.dumps(result, ensure_ascii=False)
         except Exception as exc:
             return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)

@@ -79,6 +79,20 @@ def test_get_status(dev_env):
 def test_approve_dev(dev_env):
     dev_env.create_production_session("prod-1")
     dev_env.create_dev_session("dev-1")
+    root = dev_env.root
+    for name in ("GOAL.md", "TODO.md", "NOTES.md", "REJECTED.md"):
+        (root / name).write_text("ok", encoding="utf-8")
+    (root / "tests").mkdir(exist_ok=True)
+    (root / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+    (root / "tests" / "test_approve.py").write_text("def test_ok(): pass\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True, capture_output=True)
+    (root / "README.md").write_text("base", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "-b", "dev"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "main"], cwd=root, check=True, capture_output=True)
     assert dev_env.approve_dev() is True
     assert dev_env.get_production_session().status == "idle"
 
