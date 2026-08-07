@@ -241,3 +241,42 @@ class LoopAPromoter:
                 self.store.log_event("rollback", {"artifact_id": artifact_id, "reason": reason})
                 return {"status": "rolled_back", "path": str(current)}
         return {"status": "noop", "reason": reason}
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Glideloop Loop A weekly self-improvement runner")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("report", help="Run Loop A observer weekly report")
+    subparsers.add_parser("propose", help="Propose Loop A improvement candidates")
+    subparsers.add_parser("promote", help="Promote current Loop A candidates")
+
+    args = parser.parse_args()
+    store = ArtifactStore()
+    if args.command == "report":
+        observer = LoopAObserver(store=store)
+        report = observer.weekly_report()
+        print(json.dumps(report, indent=2))
+        sys.exit(0 if not report.get("failure_signals") else 2)
+    if args.command == "propose":
+        proposer = LoopAProposer(store=store)
+        candidates = proposer.propose_team_activation_candidates()
+        print(json.dumps({"candidates": candidates}, indent=2))
+        sys.exit(0)
+    if args.command == "promote":
+        promoter = LoopAPromoter(store=store)
+        promoted = []
+        for kind in ["prompts", "strategies", "personalities"]:
+            for candidate in (store.root / "candidates" / kind).glob("*"):
+                if candidate.is_file() and not candidate.name.endswith(".meta.json"):
+                    meta_name = candidate.with_suffix(candidate.suffix + ".meta.json")
+                    meta = ArtifactMeta.from_json(json.loads(meta_name.read_text(encoding="utf-8"))) if meta_name.exists() else ArtifactMeta(
+                        artifact_id=candidate.stem, version="v1", parent_version=None, created_at=_utcnow(), change_summary="promoted without meta"
+                    )
+                    result = promoter.promote(kind, candidate.stem, candidate.name, meta)
+                    promoted.append({"candidate": candidate.name, "result": result})
+        print(json.dumps({"promoted": promoted}, indent=2))
+        sys.exit(0)

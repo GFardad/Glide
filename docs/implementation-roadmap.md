@@ -220,7 +220,7 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
 
 ## Phase 7: Production Hardening & Observability
 
-**Status:** In Progress
+**Status:** Completed
 **Goal:** add metrics, retries, structured logging, and production wiring for Hermes/systemd.
 
 ### Tickets
@@ -236,7 +236,7 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
    - JSON logs for all MCP tool calls, session transitions, loop interventions
    - Rotate daily, keep 7 days
 
-4. **Systemd Timer** — `systemd/glideloop-loop-a.timer`
+4. **Systemd Timer** — `~/.config/systemd/user/glideloop-loop-a.{service,timer}`
    - Weekly trigger for Loop A observer/validator/promoter
    - Logs to journal with `StandardOutput=journal`
 
