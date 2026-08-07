@@ -20,6 +20,7 @@ __all__ = [
     "LoopAProposer",
     "LoopAValidator",
     "LoopAPromoter",
+    "main",
 ]
 
 _LOGGER = get_logger("glideloop.loop_a")
@@ -243,7 +244,7 @@ class LoopAPromoter:
         return {"status": "noop", "reason": reason}
 
 
-if __name__ == "__main__":
+def main() -> None:
     import argparse
     import sys
 
@@ -280,3 +281,7 @@ if __name__ == "__main__":
                     promoted.append({"candidate": candidate.name, "result": result})
         print(json.dumps({"promoted": promoted}, indent=2))
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
