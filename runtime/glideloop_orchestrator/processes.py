@@ -24,7 +24,7 @@ class ProcessRecord:
     job_id: str
     session_id: str
     agent_id: str
-    command: str
+    command: str | list[str]
     cwd: Path
     env_allowlist: list[str] = field(default_factory=list)
     process: Optional[subprocess.Popen] = field(default=None, repr=False)
