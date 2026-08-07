@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 runtime/workspace/
 runtime/state/*.sqlite
+runtime/state/*.json
 *.log
 .env
 .venv/
