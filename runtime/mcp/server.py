@@ -38,7 +38,9 @@ TOOLS = [
         "description": "Stop a running Glideloop session.",
         "inputSchema": {
             "type": "object",
-            "properties": {"session_id": {"type": "string"}},
+            "properties": {
+                "session_id": {"type": "string"},
+            },
             "required": ["session_id"],
         },
     },
@@ -59,7 +61,9 @@ TOOLS = [
         "description": "Run a CTO meeting room for an objective and return Plan + Architecture + Todos.",
         "inputSchema": {
             "type": "object",
-            "properties": {"objective": {"type": "string"}},
+            "properties": {
+                "objective": {"type": "string"},
+            },
             "required": ["objective"],
         },
     },
@@ -68,9 +72,33 @@ TOOLS = [
         "description": "Run quality gates for a session.",
         "inputSchema": {
             "type": "object",
-            "properties": {"session_id": {"type": "string"}},
+            "properties": {
+                "session_id": {"type": "string"},
+            },
             "required": ["session_id"],
         },
+    },
+    {
+        "name": "ceo_execute",
+        "description": "Execute a CEO command that talks to the CTO Manager.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string"},
+                "payload": {"type": "object"},
+            },
+            "required": ["command"],
+        },
+    },
+    {
+        "name": "ceo_status",
+        "description": "Get CEO/CTO Manager overall status.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ceo_history",
+        "description": "Get CEO command history.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -193,6 +221,42 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
         passed = accept_branch(output)
         return json.dumps({"session_id": session_id, "passed": passed, "artifacts": artifacts}, ensure_ascii=False)
 
+    if name == "ceo_execute":
+        increment("mcp_tool_calls")
+        command = arguments.get("command")
+        payload = arguments.get("payload") or {}
+        if not command:
+            return json.dumps({"status": "error", "detail": "command required"}, ensure_ascii=False)
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute(command, payload)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_status":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("status")
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_history":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            return json.dumps({"status": "ok", "history": ceo.history()}, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
     return json.dumps({"error": f"unknown tool: {name}"}, ensure_ascii=False)
 
 
@@ -231,11 +295,11 @@ def main() -> None:
         app = Server("glideloop")
 
         @app.list_tools()
-        async def list_tools():
+        async def list_tools() -> list[dict[str, Any]]:
             return TOOLS
 
         @app.call_tool()
-        async def call_tool(name: str, arguments: dict):
+        async def call_tool(name: str, arguments: dict) -> list[dict[str, Any]]:
             text = handle_tool(name, arguments)
             return [{"type": "text", "text": text}]
 

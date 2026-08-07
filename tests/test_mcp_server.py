@@ -85,3 +85,27 @@ def test_handle_glideloop_quality_with_artifacts(tmp_path, monkeypatch):
 def test_handle_unknown_tool():
     payload = json.loads(handle_tool("unknown_tool", {}))
     assert "unknown tool" in payload["error"]
+
+
+def test_handle_ceo_execute_register_team():
+    payload = json.loads(handle_tool("ceo_execute", {"command": "register_team", "payload": {"name": "core", "config": {"version": "1.0"}}}))
+    assert payload["status"] == "ok"
+    assert payload["team"] == "core"
+
+
+def test_handle_ceo_execute_broadcast():
+    payload = json.loads(handle_tool("ceo_execute", {"command": "broadcast", "payload": {"message": "sync now"}}))
+    assert payload["status"] == "ok"
+    assert payload["count"] == 0
+
+
+def test_handle_ceo_status():
+    payload = json.loads(handle_tool("ceo_status", {}))
+    assert payload["status"] == "ok"
+    assert "teams" in payload
+
+
+def test_handle_ceo_history():
+    payload = json.loads(handle_tool("ceo_history", {}))
+    assert payload["status"] == "ok"
+    assert isinstance(payload["history"], list)
