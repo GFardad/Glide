@@ -302,11 +302,12 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
             from runtime.versioning.versioning import VersionLifecycle
             from pathlib import Path
 
+            root = Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
             version = arguments.get("version")
             codename = arguments.get("codename", "")
             if not version:
                 return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
-            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            lifecycle = VersionLifecycle(root)
             manifest = lifecycle.create_version(version, codename=codename)
             return json.dumps({
                 "status": "ok",
@@ -323,10 +324,11 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
             from runtime.versioning.versioning import VersionLifecycle
             from pathlib import Path
 
+            root = Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
             version = arguments.get("version")
             if not version:
                 return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
-            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            lifecycle = VersionLifecycle(root)
             manifest = lifecycle.activate_version(version)
             return json.dumps({
                 "status": "ok",
@@ -342,10 +344,11 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
             from runtime.versioning.versioning import VersionLifecycle
             from pathlib import Path
 
+            root = Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
             version = arguments.get("version")
             if not version:
                 return json.dumps({"status": "error", "detail": "version required"}, ensure_ascii=False)
-            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            lifecycle = VersionLifecycle(root)
             manifest = lifecycle.release_version(version)
             return json.dumps({
                 "status": "ok",
@@ -362,7 +365,8 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
             from runtime.versioning.versioning import VersionLifecycle
             from pathlib import Path
 
-            lifecycle = VersionLifecycle(Path("/home/gfardad/projects/glideloop"))
+            root = Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
+            lifecycle = VersionLifecycle(root)
             versions = lifecycle.list_versions()
             return json.dumps({"status": "ok", "versions": versions}, ensure_ascii=False)
         except Exception as exc:

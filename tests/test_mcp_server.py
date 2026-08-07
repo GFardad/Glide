@@ -111,7 +111,8 @@ def test_handle_ceo_history():
     assert isinstance(payload["history"], list)
 
 
-def test_handle_version_create(tmp_path):
+def test_handle_version_create(tmp_path, monkeypatch):
+    monkeypatch.setenv("GLIDELOOP_ROOT", str(tmp_path))
     version = "1.0.0-test-1763915520"
     payload = json.loads(handle_tool("version_create", {"version": version, "codename": "alpha"}))
     assert payload["status"] == "ok"
