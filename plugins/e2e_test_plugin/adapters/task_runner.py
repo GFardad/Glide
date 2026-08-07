@@ -1,4 +1,4 @@
-"""Execute a real task against the project using its available surfaces."""
+"""Task runner adapter: execute real tasks via detected surface."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ def execute_real_task(project_root: Path, surfaces: dict[str, Any]) -> dict[str,
     task = _choose_task(project_root, available)
     capture_path = project_root / ".e2e-test-plugin" / "task-capture.json"
     capture_path.parent.mkdir(parents=True, exist_ok=True)
-    result = {
+
+    result: dict[str, Any] = {
         "project_root": str(project_root),
         "available_surfaces": available,
         "primary_surface": primary,
@@ -24,29 +25,36 @@ def execute_real_task(project_root: Path, surfaces: dict[str, Any]) -> dict[str,
         "started_at": started_at,
         "capture_path": str(capture_path),
     }
+
     if primary == "cli":
         result.update(_run_cli_task(project_root, task, capture_path))
     elif primary == "web":
         result.update(_run_web_task(project_root, task, capture_path))
     else:
         result.update(_run_generic_task(project_root, task, capture_path))
+
     result["finished_at"] = datetime.now(timezone.utc).isoformat()
     result["status"] = "ok" if result.get("ok", False) else "error"
     return result
 
 
 def _choose_task(project_root: Path, available: list[str]) -> dict[str, Any]:
-    if "cli" in available:
-        readme_task = _find_readme_task(project_root)
-        if readme_task:
-            return readme_task
-        script_task = _find_pyproject_script(project_root)
-        if script_task:
-            return script_task
-        main_task = _find_main_module_task(project_root)
-        if main_task:
-            return main_task
-    return {"command": "python -m main --help", "description": "Run project help command"}
+    if "cli" not in available:
+        return {"command": "echo 'no-cli'", "description": "fallback no-op"}
+
+    readme_task = _find_readme_task(project_root)
+    if readme_task:
+        return readme_task
+
+    script_task = _find_pyproject_script(project_root)
+    if script_task:
+        return script_task
+
+    main_task = _find_main_module_task(project_root)
+    if main_task:
+        return main_task
+
+    return {"command": "python -m main --help", "description": "fallback help"}
 
 
 def _find_readme_task(project_root: Path) -> dict[str, Any] | None:
@@ -80,21 +88,14 @@ def _find_pyproject_script(project_root: Path) -> dict[str, Any] | None:
 
 def _find_main_module_task(project_root: Path) -> dict[str, Any] | None:
     for path in sorted(project_root.rglob("*.py")):
-        rel = path.relative_to(project_root)
         if _is_ignored(path, project_root):
             continue
+        rel = path.relative_to(project_root)
         text = path.read_text(encoding="utf-8", errors="ignore")
         if 'if __name__ == "__main__"' in text:
             module = ".".join(rel.with_suffix("").parts)
             return {"command": f"python -m {module}", "description": f"__main__ module: {module}"}
     return None
-
-
-def _is_ignored(path: Path, project_root: Path) -> bool:
-    rel = path.relative_to(project_root)
-    parts = set(rel.parts)
-    ignore = {".venv", "__pycache__", ".git", "node_modules", ".mypy_cache", ".ruff_cache"}
-    return bool(parts & ignore)
 
 
 def _run_cli_task(project_root: Path, task: dict[str, Any], capture_path: Path) -> dict[str, Any]:
@@ -134,3 +135,10 @@ def _run_generic_task(project_root: Path, task: dict[str, Any], capture_path: Pa
     }
     capture_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return payload
+
+
+def _is_ignored(path: Path, project_root: Path) -> bool:
+    rel = path.relative_to(project_root)
+    parts = set(rel.parts)
+    ignore = {".venv", "__pycache__", ".git", "node_modules", ".mypy_cache", ".ruff_cache"}
+    return bool(parts & ignore)

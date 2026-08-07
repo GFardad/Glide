@@ -13,6 +13,7 @@ from typing import Any
 from runtime.logging import get_logger, log_event
 from runtime.observability.counters import increment
 from runtime.quality.gates import PromotionGate
+from runtime.state import StateStore
 
 __all__ = [
     "BranchStatus",
@@ -68,12 +69,15 @@ class DevSession:
 class DevEnvironment:
     def __init__(self, root: str | Path | None = None) -> None:
         self.root = Path(root) if root else Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
-        self.state_file = self.root / "runtime" / "state" / "dev_env.json"
+        state_dir = self.root / "runtime" / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        self._store = StateStore(state_dir)
         self._state: dict[str, Any] = self._load()
 
     def _load(self) -> dict[str, Any]:
-        if self.state_file.exists():
-            return json.loads(self.state_file.read_text(encoding="utf-8"))
+        stored = self._store.get("dev_env", "state")
+        if stored:
+            return stored
         return {
             "dev": None,
             "branches": {},
@@ -82,8 +86,7 @@ class DevEnvironment:
         }
 
     def _save(self) -> None:
-        self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(json.dumps(self._state, indent=2), encoding="utf-8")
+        self._store.set("dev_env", "state", self._state)
 
     def create_dev_session(self, session_id: str, workspace: str | Path | None = None) -> DevSession:
         session = DevSession(

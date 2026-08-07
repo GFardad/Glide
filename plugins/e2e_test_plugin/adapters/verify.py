@@ -1,4 +1,4 @@
-"""Run unit tests and optional LSP checks."""
+"""Verification adapter: unit tests + LSP checks."""
 
 from __future__ import annotations
 

@@ -1,9 +1,8 @@
-"""Graphify wrapper for plugin E2E test."""
+"""Graphify adapter: call Graphify via MCP for project mapping."""
 
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +14,9 @@ def graphify_project(project_name: str) -> dict[str, Any]:
         return {
             "project_name": project_name,
             "project_root": str(project_root),
-            "status": "error",
+            "status": "skipped",
+            "optional": True,
+            "graph_stats": None,
             "detail": f"graph.json not found: {graph_path}",
         }
 
@@ -27,14 +28,17 @@ def graphify_project(project_name: str) -> dict[str, Any]:
             "graph_stats": {
                 "nodes": len(data.get("nodes", [])),
                 "edges": len(data.get("edges", [])),
+                "communities": len(data.get("communities", [])),
             },
             "status": "ok",
+            "optional": True,
         }
     except Exception as exc:
         return {
             "project_name": project_name,
             "project_root": str(project_root),
             "status": "error",
+            "optional": True,
             "detail": str(exc),
         }
 

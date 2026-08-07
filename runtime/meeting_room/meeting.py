@@ -69,6 +69,99 @@ _ROLE_MANDATES: dict[str, dict[str, Any]] = {
 }
 
 
+def _build_perspective(role: str, objective: str, workspace: Path) -> dict[str, Any]:
+    signals = _derive_signals(role, objective)
+    if any("blocking" in signal.lower() or "violat" in signal.lower() for signal in signals):
+        recommendation = "revise"
+        constraints_met = False
+    elif signals:
+        recommendation = "accept_with_notes"
+        constraints_met = True
+    else:
+        recommendation = "accept"
+        constraints_met = True
+    return {
+        "role": role,
+        "summary": f"{role}: objective '{objective}' is {'acceptable with notes' if recommendation != 'revise' else 'not ready'}.",
+        "signals": signals,
+        "constraints_met": constraints_met,
+        "recommendation": recommendation,
+        "concerns": [signal for signal in signals if "blocking" in signal.lower() or "violat" in signal.lower()],
+        "artifacts": [str(workspace / name) for name in ("PERSONALITY.md", "GOAL.md", "NOTES.md", "TODO.md", "REJECTED.md")],
+        "timestamp": time.time(),
+    }
+
+
+def _derive_signals(role: str, objective: str) -> list[str]:
+    text = objective.lower()
+    if role == "architect":
+        return _architect_signals(text)
+    if role == "engineer":
+        return _engineer_signals(text)
+    if role == "security":
+        return _security_signals(text)
+    if role == "qa":
+        return _qa_signals(text)
+    if role == "product":
+        return _product_signals(text)
+    return [f"{role}: objective '{objective}' lacks actionable scope"]
+
+
+def _architect_signals(text: str) -> list[str]:
+    signals: list[str] = []
+    if "interface" not in text and "api" not in text and "contract" not in text:
+        signals.append("missing interface contract")
+    if "backward" not in text and "compat" not in text:
+        signals.append("backward compatibility not addressed")
+    if "coupling" not in text and "boundary" not in text:
+        signals.append("coupling/boundary risk not mitigated")
+    return signals or ["structure appears bounded"]
+
+
+def _engineer_signals(text: str) -> list[str]:
+    signals: list[str] = []
+    if "rollback" not in text and "revert" not in text:
+        signals.append("no rollback path")
+    if "test" not in text and "verify" not in text:
+        signals.append("verification path missing")
+    if "performance" not in text and "latency" not in text and "load" not in text:
+        signals.append("operational risk not evaluated")
+    return signals or ["implementation path looks safe"]
+
+
+def _security_signals(text: str) -> list[str]:
+    signals: list[str] = []
+    if "auth" not in text and "permission" not in text and "secret" not in text:
+        signals.append("trust boundary not explicit")
+    if "audit" not in text and "log" not in text and "trace" not in text:
+        signals.append("audit trail not specified")
+    if "input" in text and "sanitize" not in text and "validate" not in text:
+        signals.append("input validation missing — blocking")
+    return signals or ["attack surface appears contained"]
+
+
+def _qa_signals(text: str) -> list[str]:
+    signals: list[str] = []
+    if "criteria" not in text and "acceptance" not in text:
+        signals.append("acceptance criteria missing")
+    if "regression" not in text and "rollback" not in text:
+        signals.append("regression/rollback criteria missing")
+    if "test" not in text and "coverage" not in text:
+        signals.append("test strategy missing")
+    return signals or ["testability is acceptable"]
+
+
+def _product_signals(text: str) -> list[str]:
+    signals: list[str] = []
+    if "user" not in text and "impact" not in text:
+        signals.append("user impact undefined")
+    if "priority" not in text and "value" not in text:
+        signals.append("value/priority justification missing")
+    if "scope" not in text:
+        signals.append("scope not bounded")
+    return signals or ["scope/value appears bounded"]
+
+
 @dataclass(frozen=True)
 class MeetingBrief:
     objective: str
@@ -147,17 +240,22 @@ class PersonalityAgent:
     def run(self) -> dict[str, Any]:
         timestamp = time.time()
         log_event(_LOGGER, "meeting_role_started", {"role": self.role, "objective": self.objective})
-        perspective: dict[str, Any] = {
-            "role": self.role,
-            "summary": f"{self.role} perspective on: {self.objective}",
-            "constraints_met": True,
-            "recommendation": "accept",
-            "concerns": [],
-            "artifacts": [str(self.workspace / name) for name in ("PERSONALITY.md", "GOAL.md", "NOTES.md", "TODO.md", "REJECTED.md")],
-            "timestamp": timestamp,
-        }
+        perspective = _build_perspective(self.role, self.objective, self.workspace)
         (self.workspace / "NOTES.md").write_text(
-            f"\n## {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(timestamp))}\nEvaluated objective from {self.role} perspective.\n",
+            "\n".join(
+                [
+                    f"## {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(timestamp))}",
+                    f"Evaluated objective from {self.role} perspective.",
+                    "",
+                    "### Key Signals",
+                    *[f"- {line}" for line in perspective.get("signals", [])],
+                    "",
+                    "### Decision",
+                    f"- recommendation={perspective.get('recommendation', 'unknown')}",
+                    f"- constraints_met={perspective.get('constraints_met', True)}",
+                ]
+            )
+            + "\n",
             encoding="utf-8",
         )
         log_event(_LOGGER, "meeting_role_completed", {"role": self.role, "recommendation": perspective["recommendation"]})
@@ -182,18 +280,20 @@ class MeetingRoom:
             workspace = self.room_dir / "agents" / f"{role}-{index}"
             agent = PersonalityAgent(role=role, objective=self.objective, workspace=workspace)
             outcomes.append(agent.run())
+
         disagreements: list[dict[str, Any]] = []
         agreements: list[dict[str, Any]] = []
         for outcome in outcomes:
-            if outcome.get("recommendation") != "accept":
+            if outcome.get("recommendation") == "revise":
                 disagreements.append({"role": outcome["role"], "concerns": outcome.get("concerns", [])})
             else:
                 agreements.append({"role": outcome["role"], "summary": outcome.get("summary", "")})
-        recommendation = "revise"
-        if not disagreements:
+
+        if disagreements:
+            recommendation = "accept_with_notes" if len(agreements) > len(disagreements) else "revise"
+        else:
             recommendation = "accept"
-        elif len(agreements) > len(disagreements):
-            recommendation = "accept_with_notes"
+
         duration_ms = (time.time() - started) * 1000
         minutes_name = f"{time.strftime('%Y%m%d-%H%M%S', time.gmtime(started))}_meeting.md"
         minutes_path = self.minutes_dir / minutes_name

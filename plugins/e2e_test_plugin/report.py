@@ -1,4 +1,4 @@
-"""Write complete E2E summary markdown."""
+"""Report adapter: generate complete E2E markdown summary."""
 
 from __future__ import annotations
 

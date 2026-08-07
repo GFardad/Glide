@@ -1,0 +1,15 @@
+{
+  "name": "e2e-test-plugin",
+  "version": "1.0.0",
+  "description": "Production-grade E2E test plugin for HermesAgent, OpenCode, Codex, ClaudeCode",
+  "targets": ["HermesAgent", "OpenCode", "Codex", "ClaudeCode"],
+  "entry": "runner.main",
+  "steps": [
+    {"id": "graphify", "adapter": "graphify", "output": "graphify-report.json"},
+    {"id": "log_map", "adapter": "log_mapper", "output": "e2e-map.md"},
+    {"id": "surface_audit", "adapter": "surface", "output": "surface-audit.json"},
+    {"id": "real_task", "adapter": "task_runner", "output": "task-capture.json", "capture": true},
+    {"id": "unit_lsp", "adapter": "verify", "output": "verification-report.json"},
+    {"id": "summary", "adapter": "report", "output": "e2e-summary.md"}
+  ]
+}
