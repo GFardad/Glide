@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from runtime.dev_env import DevEnvironment, DevSession, ProductionSession
+from runtime.manager.decisions import DecisionEngine
+from runtime.logging import get_logger, log_event
 from runtime.observability.counters import increment
-from runtime.logging import log_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger("glideloop.manager")
 
 
 @dataclass
@@ -23,6 +26,7 @@ class CTOManagerConfig:
     escalation_threshold: int = 3
     auto_escalate: bool = True
     root: Path = Path("/home/gfardad/projects/glideloop")
+    state_file: Path = field(default_factory=lambda: Path("/tmp/glideloop-manager-state.json"))
 
 
 class CTOManager:
@@ -33,6 +37,7 @@ class CTOManager:
         self.teams: dict[str, dict[str, Any]] = {}
         self.actions: list[dict[str, Any]] = []
         self._last_check = 0.0
+        self._dev_env = DevEnvironment(self.config.root)
 
     def register_team(self, name: str, config: dict[str, Any]) -> None:
         """Register a team for management."""
@@ -46,6 +51,18 @@ class CTOManager:
         increment("manager_teams_registered")
         log_event(logger, "manager_team_registered", payload={"name": name, "config": config})
         logger.info("Registered team: %s", name)
+
+    def start_dev_session(self, session_id: str | None = None) -> DevSession:
+        """Start a dev CTO session."""
+        session = self._dev_env.create_dev_session(session_id or f"dev-{time.time_ns()}")
+        log_event(logger, "dev_session_started", payload={"session_id": session.session_id})
+        return session
+
+    def start_production_session(self, session_id: str | None = None) -> ProductionSession:
+        """Start a production CTO session."""
+        session = self._dev_env.create_production_session(session_id or f"prod-{time.time_ns()}")
+        log_event(logger, "production_session_started", payload={"session_id": session.session_id})
+        return session
 
     def check_teams(self) -> dict[str, Any]:
         """Check all registered teams and report status."""
@@ -72,6 +89,7 @@ class CTOManager:
             "timestamp": time.time(),
         }
         self.actions.append(action)
+        log_event(logger, "manager_escalation", payload=action)
         logger.warning("Escalated team %s: %s", team, reason)
         return action
 
@@ -93,3 +111,22 @@ class CTOManager:
     def get_action_log(self) -> list[dict[str, Any]]:
         """Get the action log."""
         return list(self.actions)
+
+    def status(self) -> dict[str, Any]:
+        """Get overall manager status."""
+        return {
+            "teams": self.check_teams(),
+            "actions": self.get_action_log(),
+            "dev_env": self._dev_env.get_status(),
+        }
+
+    def propose_promotion(self, tag: str | None = None) -> dict[str, Any]:
+        """Propose promoting dev branch to main."""
+        decision = DecisionEngine().decide("promote", "Propose promoting dev branch to main")
+        log_event(logger, "promotion_proposed", payload={"decision_id": decision.id, "tag": tag})
+        return {
+            "decision_id": decision.id,
+            "status": "proposed",
+            "tag": tag,
+            "timestamp": time.time(),
+        }

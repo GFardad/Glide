@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from runtime.manager.cto_manager import CTOManager, CTOManagerConfig
@@ -58,3 +60,37 @@ def test_report_system_generates():
     daily = system.generate_daily({"teams_checked": 2, "issues_found": 1, "escalations": 0, "decisions_made": 1})
     assert isinstance(daily, DailyReport)
     assert daily.teams_checked == 2
+
+
+@patch("runtime.manager.cto_manager.DevEnvironment")
+def test_cto_manager_start_dev_session(mock_dev_env_cls):
+    mock_dev = mock_dev_env_cls.return_value
+    mock_dev.create_dev_session.return_value.session_id = "dev-1"
+    manager = CTOManager()
+    session = manager.start_dev_session("dev-1")
+    assert session.session_id == "dev-1"
+    mock_dev.create_dev_session.assert_called_once_with("dev-1")
+
+
+@patch("runtime.manager.cto_manager.DevEnvironment")
+def test_cto_manager_status(mock_dev_env_cls):
+    mock_dev = mock_dev_env_cls.return_value
+    mock_dev.get_status.return_value = {"production": None, "dev": None, "releases": []}
+    manager = CTOManager()
+    manager.register_team("core", {"version": "1.0"})
+    status = manager.status()
+    assert "teams" in status
+    assert "dev_env" in status
+    assert status["dev_env"]["releases"] == []
+
+
+@patch("runtime.manager.cto_manager.DecisionEngine")
+def test_cto_manager_propose_promotion(mock_engine_cls):
+    mock_engine = mock_engine_cls.return_value
+    mock_decision = type("Decision", (), {"id": "decision-1"})()
+    mock_engine.decide.return_value = mock_decision
+    manager = CTOManager()
+    result = manager.propose_promotion("release-1")
+    assert result["status"] == "proposed"
+    assert result["tag"] == "release-1"
+    mock_engine.decide.assert_called_once_with("promote", "Propose promoting dev branch to main")
