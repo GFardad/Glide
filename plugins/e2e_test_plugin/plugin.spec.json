@@ -1,0 +1,12 @@
+{
+  "name": "e2e-test-plugin",
+  "targets": ["HermesAgent", "OpenCode", "Codex", "ClaudeCode"],
+  "steps": [
+    {"id": "graphify", "run": "graphify_project", "inputs": ["project_name"]},
+    {"id": "log_map", "run": "discover_logs_and_modules", "outputs": ["e2e-map.md"]},
+    {"id": "surface_audit", "run": "audit_surfaces", "outputs": ["e2e-map.md"]},
+    {"id": "real_task", "run": "execute_real_task", "capture": true},
+    {"id": "unit_lsp", "run": "run_unit_tests_and_lsp", "outputs": ["e2e-summary.md"]},
+    {"id": "summary", "run": "write_summary", "outputs": ["e2e-summary.md"]}
+  ]
+}
