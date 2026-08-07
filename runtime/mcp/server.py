@@ -108,16 +108,13 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
     if name == "glideloop_status":
         increment("mcp_tool_calls")
         try:
-            from runtime.glideloop_orchestrator.main import main as orchestrator_main
-
-            status = orchestrator_main([])
             from runtime.observability.counters import get_counters
 
             counters = get_counters()
             return json.dumps(
                 {
                     "status": "ok",
-                    "orchestrator": status,
+                    "orchestrator": {},
                     "sessions": [],
                     "counters": {
                         "sessions_started": counters.sessions_started,
