@@ -3,27 +3,85 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+from pathlib import Path
 
 import pytest
 
-from runtime.mcp.server import handle_tool
+from runtime.mcp.server import _list_todos, _resolve_session_dir, handle_tool
 
 
 def test_handle_glideloop_status():
-    payload = handle_tool("glideloop_status", {})
-    assert json.loads(payload)["status"] == "ok"
+    payload = json.loads(handle_tool("glideloop_status", {}))
+    assert payload["status"] == "ok"
+    assert "counters" in payload
 
 
 def test_handle_glideloop_run():
-    payload = handle_tool("glideloop_run", {"objective": "build auth", "mode": "hybrid"})
-    assert "build auth" in payload
+    payload = json.loads(handle_tool("glideloop_run", {"objective": "build auth", "mode": "hybrid"}))
+    assert payload["exit_code"] == 0
+    assert payload["objective"] == "build auth"
+
+
+def test_handle_glideloop_stop():
+    payload = json.loads(handle_tool("glideloop_stop", {"session_id": "s1"}))
+    assert payload["stopped"] == "s1"
 
 
 def test_handle_glideloop_todos_create():
-    payload = handle_tool("glideloop_todos", {"action": "create", "content": "write tests"})
-    assert "write tests" in payload
+    payload = json.loads(handle_tool("glideloop_todos", {"action": "create", "content": "write tests", "priority": 5}))
+    assert payload["created"] == "write tests"
+    assert payload["session_id"] == "default"
+
+
+def test_handle_glideloop_todos_list_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("GLIDELOOP_WORKSPACE", str(tmp_path))
+    session_dir = tmp_path / "default"
+    session_dir.mkdir(parents=True)
+    payload = _list_todos("default")
+    assert payload["session_id"] == "default"
+    assert payload["todos"] == []
+
+
+def test_handle_glideloop_todos_list_with_items(tmp_path, monkeypatch):
+    monkeypatch.setenv("GLIDELOOP_WORKSPACE", str(tmp_path))
+    session_dir = tmp_path / "default"
+    session_dir.mkdir(parents=True)
+    (session_dir / "TODO.md").write_text("- [ ] task1\n- [x] task2\nrandom line\n", encoding="utf-8")
+    payload = _list_todos("default")
+    assert payload["todos"] == ["- [ ] task1", "- [x] task2"]
+
+
+def test_handle_glideloop_meeting():
+    payload = json.loads(handle_tool("glideloop_meeting", {"objective": "ship MVP"}))
+    assert payload["objective"] == "ship MVP"
+    assert "plan" in payload
+    assert "architecture" in payload
+    assert isinstance(payload["todos"], list)
+
+
+def test_handle_glideloop_quality_missing_artifacts(tmp_path, monkeypatch):
+    monkeypatch.setenv("GLIDELOOP_WORKSPACE", str(tmp_path))
+    session_dir = tmp_path / "default"
+    session_dir.mkdir(parents=True)
+    payload = json.loads(handle_tool("glideloop_quality", {"session_id": "default"}))
+    assert payload["session_id"] == "default"
+    assert payload["passed"] is False
+    assert payload["artifacts"] == []
+
+
+def test_handle_glideloop_quality_with_artifacts(tmp_path, monkeypatch):
+    monkeypatch.setenv("GLIDELOOP_WORKSPACE", str(tmp_path))
+    session_dir = tmp_path / "default"
+    session_dir.mkdir(parents=True)
+    for name in ["GOAL.md", "TODO.md", "NOTES.md", "REJECTED.md"]:
+        (session_dir / name).write_text("ok", encoding="utf-8")
+    payload = json.loads(handle_tool("glideloop_quality", {"session_id": "default"}))
+    assert payload["passed"] is True
+    assert set(payload["artifacts"]) == {"GOAL.md", "TODO.md", "NOTES.md", "REJECTED.md"}
 
 
 def test_handle_unknown_tool():
-    payload = handle_tool("unknown_tool", {})
-    assert "unknown tool" in payload
+    payload = json.loads(handle_tool("unknown_tool", {}))
+    assert "unknown tool" in payload["error"]

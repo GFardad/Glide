@@ -5,3 +5,4 @@ runtime/state/*.sqlite
 *.log
 .env
 .venv/
+.coverage
