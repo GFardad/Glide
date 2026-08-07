@@ -130,3 +130,49 @@ class CTOManager:
             "tag": tag,
             "timestamp": time.time(),
         }
+
+    def broadcast(self, message: str, team: str | None = None) -> dict[str, Any]:
+        """Broadcast a message to all teams or a specific team."""
+        targets = [team] if team else list(self.teams.keys())
+        deliveries: list[dict[str, Any]] = []
+        for target in targets:
+            delivery = {
+                "team": target,
+                "message": message,
+                "timestamp": time.time(),
+                "status": "delivered",
+            }
+            deliveries.append(delivery)
+            log_event(logger, "manager_broadcast", payload=delivery)
+        return {"deliveries": deliveries, "count": len(deliveries)}
+
+    def sync_team(self, team: str) -> dict[str, Any]:
+        """Sync a team's status from dev_env."""
+        if team not in self.teams:
+            raise ValueError(f"Unknown team: {team}")
+        team_data = self.teams[team]
+        team_data["last_update"] = time.time()
+        log_event(logger, "manager_team_synced", payload={"team": team, "status": team_data["status"]})
+        return {
+            "team": team,
+            "status": team_data["status"],
+            "failures": team_data["failures"],
+            "synced_at": time.time(),
+        }
+
+    def merge_proposal(self, source: str, target: str, tag: str | None = None) -> dict[str, Any]:
+        """Propose merging source branch into target branch."""
+        decision = DecisionEngine().decide(
+            "merge",
+            f"Merge {source} into {target}",
+        )
+        proposal = {
+            "decision_id": decision.id,
+            "source": source,
+            "target": target,
+            "tag": tag,
+            "status": "proposed",
+            "timestamp": time.time(),
+        }
+        log_event(logger, "merge_proposed", payload=proposal)
+        return proposal

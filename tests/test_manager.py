@@ -94,3 +94,48 @@ def test_cto_manager_propose_promotion(mock_engine_cls):
     assert result["status"] == "proposed"
     assert result["tag"] == "release-1"
     mock_engine.decide.assert_called_once_with("promote", "Propose promoting dev branch to main")
+
+
+def test_cto_manager_broadcast_to_all():
+    manager = CTOManager()
+    manager.register_team("core", {"version": "1.0"})
+    manager.register_team("ui", {"version": "1.0"})
+    result = manager.broadcast("sync now")
+    assert result["count"] == 2
+    assert {delivery["team"] for delivery in result["deliveries"]} == {"core", "ui"}
+
+
+def test_cto_manager_broadcast_to_team():
+    manager = CTOManager()
+    manager.register_team("core", {"version": "1.0"})
+    result = manager.broadcast("sync core", team="core")
+    assert result["count"] == 1
+    assert result["deliveries"][0]["team"] == "core"
+
+
+def test_cto_manager_sync_team():
+    manager = CTOManager()
+    manager.register_team("core", {"version": "1.0"})
+    result = manager.sync_team("core")
+    assert result["team"] == "core"
+    assert result["status"] == "registered"
+    assert "synced_at" in result
+
+
+def test_cto_manager_sync_team_unknown():
+    manager = CTOManager()
+    with pytest.raises(ValueError):
+        manager.sync_team("unknown")
+
+
+@patch("runtime.manager.cto_manager.DecisionEngine")
+def test_cto_manager_merge_proposal(mock_engine_cls):
+    mock_engine = mock_engine_cls.return_value
+    mock_decision = type("Decision", (), {"id": "decision-1"})()
+    mock_engine.decide.return_value = mock_decision
+    manager = CTOManager()
+    result = manager.merge_proposal("feature/x", "main", tag="merge-1")
+    assert result["source"] == "feature/x"
+    assert result["target"] == "main"
+    assert result["status"] == "proposed"
+    mock_engine.decide.assert_called_once_with("merge", "Merge feature/x into main")
