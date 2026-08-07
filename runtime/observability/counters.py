@@ -27,6 +27,9 @@ class Counters:
     dev_approvals_started: int = 0
     dev_approvals_completed: int = 0
     releases_promoted: int = 0
+    manager_teams_registered: int = 0
+    manager_escalations: int = 0
+    manager_checks_run: int = 0
 
 
 _COUNTERS = Counters()
