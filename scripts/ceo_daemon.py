@@ -3,7 +3,7 @@
 
 Single-instance daemon that:
 - Ensures worker is running
-- Drives real planning/execution via MCP/CEO
+- Drives real planning/execution via MCP/CEO phases
 - Monitors progress and injects improvement goals
 - Commits and pushes to GitHub
 - Backs off when GlideLoop is truly autonomous
@@ -67,7 +67,6 @@ def ensure_single_instance() -> bool:
             pid = int(pid_text)
             try:
                 os.kill(pid, 0)
-                # Another instance is running
                 print(f"[ceo-daemon] Another instance running (pid {pid}), exiting")
                 return False
             except ProcessLookupError:
@@ -93,40 +92,44 @@ def ensure_worker_running() -> None:
         background=True,
     )
 
-def find_todos() -> list[dict]:
-    """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
-    items = []
-    try:
-        for py_file in REPO_ROOT.glob("runtime/**/*.py"):
-            text = py_file.read_text(encoding="utf-8", errors="ignore")
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if "TODO" in line or "FIXME" in line or "HACK" in line:
-                    items.append({
-                        "file": str(py_file.relative_to(REPO_ROOT)),
-                        "line": lineno,
-                        "text": line.strip(),
-                        "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
-                    })
-    except Exception as exc:
-        print(f"[ceo-daemon] TODO scan failed: {exc}")
-    return items[:10]
-
-def drive_planning(status: dict) -> None:
-    """Drive real planning/execution through GlideLoop interfaces."""
-    orchestrator = status.get("orchestrator", {})
-    active = orchestrator.get("active_sessions", 0)
-    sessions = status.get("sessions", [])
-
-    if active == 0 and not sessions:
-        print("[ceo-daemon] No active work. Starting orchestrator session...")
-        result = mcp("glideloop_run", {"objective": "Continue production readiness improvements"})
-        if result.get("exit_code") == 0:
-            print("[ceo-daemon] Orchestrator session started")
+def drive_ceo_pipeline() -> dict:
+    """Drive the CEO phase pipeline: spec -> plan -> build -> test -> review -> ship."""
+    phase_tools = [
+        ("ceo_spec", {"objective": "Self-improve GlideLoop production readiness"}),
+        ("ceo_plan", {}),
+        ("ceo_build", {}),
+        ("ceo_test", {}),
+        ("ceo_review", {}),
+        ("ceo_ship", {}),
+    ]
+    
+    results = {}
+    current_spec_session = None
+    
+    for tool_name, args in phase_tools:
+        if tool_name == "ceo_plan" and current_spec_session:
+            args = {"spec_session_id": current_spec_session}
+        elif tool_name == "ceo_build" and results.get("ceo_plan", {}).get("plan_session_id"):
+            args = {"plan_session_id": results["ceo_plan"]["plan_session_id"]}
+        elif tool_name == "ceo_test" and results.get("ceo_build", {}).get("build_session_id"):
+            args = {"build_session_id": results["ceo_build"]["build_session_id"]}
+        elif tool_name == "ceo_review" and results.get("ceo_test", {}).get("test_session_id"):
+            args = {"test_session_id": results["ceo_test"]["test_session_id"]}
+        elif tool_name == "ceo_ship" and results.get("ceo_review", {}).get("review_session_id"):
+            args = {"review_session_id": results["ceo_review"]["review_session_id"]}
+        
+        result = mcp(tool_name, args)
+        results[tool_name] = result
+        
+        if result.get("status") == "ok":
+            print(f"[ceo-daemon] {tool_name} -> {result.get('session_id') or result.get('phase')}")
+            if tool_name == "ceo_spec":
+                current_spec_session = result.get("session_id")
         else:
-            print(f"[ceo-daemon] Orchestrator start failed: {result}")
-
-    # CEO directive to drive pipeline
-    ceo_directive("Execute next production improvement phase and validate artifacts")
+            print(f"[ceo-daemon] {tool_name} failed: {result.get('detail')}")
+            break
+    
+    return results
 
 def ceo_directive(objective: str) -> None:
     payload = {
@@ -170,49 +173,26 @@ def quality_gate() -> dict:
         "returncode": proc.returncode,
     }
 
-def analyze_and_improve(status: dict) -> None:
-    """Analyze current state and inject concrete improvement tasks."""
-    # Scan for TODOs/FIXMEs
-    todos = find_todos()
-    if todos:
-        inject_improvement_task(
-            "todo_cleanup",
-            f"echo 'Found {len(todos)} TODOs/FIXMEs'; grep -rn 'TODO\\|FIXME' runtime || true",
-            f"Address {len(todos)} TODOs/FIXMEs in runtime/",
-        )
-
-    # If dev is idle, try to activate it with real work
-    dev_status = status.get("dev_env", {}).get("dev", {}).get("status", "unknown")
-    if dev_status == "idle":
-        inject_improvement_task(
-            "dev_activate",
-            "echo 'Activating dev CTO with real work'; pytest tests/test_mcp_server.py -q || true",
-            "Activate dev environment with focused test run",
-        )
-
-    # Monitor production blockers
-    counters = status.get("counters", {})
-    if counters.get("sessions_started", 0) == 0 and status.get("orchestrator", {}).get("active_sessions", 0) == 0:
-        inject_improvement_task(
-            "monitor_sessions",
-            "echo 'Monitoring orchestrator sessions'; glideloop_status || true",
-            "Monitor and investigate why sessions_started remains 0",
-        )
-
-    # Always run quality checks
-    inject_improvement_task(
-        "quality",
-        "pytest -q || echo 'Tests failed'",
-        "Run quality gates",
-    )
-
-    # Alert on known production blocker
-    if counters.get("mcp_tool_calls", 0) > 0:
-        inject_improvement_task(
-            "alert_approve_dev",
-            "echo 'ALERT: test_approve_dev is failing - blocking production approval flow'; pytest tests/test_dev_env.py::test_approve_dev -v || true",
-            "Alert: test_approve_dev failure is blocking dev approval flow",
-        )
+def find_todos() -> list[dict]:
+    """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
+    items = []
+    try:
+        for py_file in REPO_ROOT.glob("runtime/**/*.py"):
+            text = py_file.read_text(encoding="utf-8", errors="ignore")
+            for lineno, line in enumerate(text.splitlines(), 1):
+                if "TODO" in line or "FIXME" in line or "HACK" in line:
+                    # Skip lines that are just checking for TODOs
+                    if any(skip in line for skip in ['if "TODO"', "if 'TODO'", 'if "FIXME"', "if 'FIXME'", 'detect_todo', '_detect_todo']):
+                        continue
+                    items.append({
+                        "file": str(py_file.relative_to(REPO_ROOT)),
+                        "line": lineno,
+                        "text": line.strip(),
+                        "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
+                    })
+    except Exception as exc:
+        print(f"[ceo-daemon] TODO scan failed: {exc}")
+    return items[:10]
 
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
@@ -222,6 +202,7 @@ def monitor_loop() -> None:
     cycle = 0
     idle_cycles = 0
     last_push_cycle = 0
+    pipeline_phase = 0
 
     try:
         while True:
@@ -243,11 +224,39 @@ def monitor_loop() -> None:
             print(f"[ceo-daemon] active_sessions: {active_sessions}")
             print(f"[ceo-daemon] dev_status: {dev_status}")
 
-            # Drive planning/execution
-            drive_planning(status)
+            # Drive CEO pipeline
+            if active_sessions == 0 and not sessions:
+                print("[ceo-daemon] No active work. Driving CEO pipeline...")
+                pipeline_results = drive_ceo_pipeline()
+                if any(r.get("status") == "ok" for r in pipeline_results.values()):
+                    print("[ceo-daemon] CEO pipeline advanced")
+            
+            # CEO directive
+            ceo_directive("Continue production improvements and maintain quality gates")
 
-            # Analyze and inject concrete improvements
-            analyze_and_improve(status)
+            # Scan for TODOs
+            todos = find_todos()
+            if todos:
+                inject_improvement_task(
+                    "todo_cleanup",
+                    f"echo 'Found {len(todos)} TODOs/FIXMEs'; find runtime -name '*.py' -print0 | xargs -0 grep -n 'TODO\\|FIXME' || true",
+                    f"Address {len(todos)} TODOs/FIXMEs in runtime/",
+                )
+
+            # Quality task
+            inject_improvement_task(
+                "quality",
+                "pytest -q || echo 'Tests failed'",
+                "Run quality gates",
+            )
+
+            # Dev activation
+            if dev_status == "idle":
+                inject_improvement_task(
+                    "dev_activate",
+                    "echo 'Activating dev CTO'",
+                    "Activate dev environment",
+                )
 
             # Quality gate before push
             if cycle - last_push_cycle >= 3:
