@@ -340,8 +340,19 @@ def monitor_loop() -> None:
                     "Run code review graph status",
                 )
 
-            # Alert on known production blocker
-            if counters.get("mcp_tool_calls", 0) > 0:
+            # Alert only on a genuinely failing approve_dev test
+            approve_proc = run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "tests/test_dev_env.py::test_approve_dev",
+                    "-q",
+                    "--tb=no",
+                ],
+                timeout=120,
+            )
+            if approve_proc.returncode != 0:
                 inject_improvement_task(
                     "alert_approve_dev",
                     "echo 'ALERT: test_approve_dev is failing - blocking production approval flow'; pytest tests/test_dev_env.py::test_approve_dev -v || true",
