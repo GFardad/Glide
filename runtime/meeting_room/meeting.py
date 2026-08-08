@@ -69,7 +69,7 @@ _ROLE_MANDATES: dict[str, dict[str, Any]] = {
 }
 
 
-def _build_perspective(role: str, objective: str, workspace: Path) -> dict[str, Any]:
+def _build_perspective(role: str, objective: str, workspace: Path, project_root: Path | None = None) -> dict[str, Any]:
     signals = _derive_signals(role, objective)
     if any("blocking" in signal.lower() or "violat" in signal.lower() for signal in signals):
         recommendation = "revise"
@@ -80,6 +80,11 @@ def _build_perspective(role: str, objective: str, workspace: Path) -> dict[str, 
     else:
         recommendation = "accept"
         constraints_met = True
+    reviewed: list[str] = []
+    improvements: list[str] = []
+    if project_root and project_root.exists():
+        reviewed = _reviewed_files(project_root, objective)
+        improvements = _suggest_improvements(role, objective, reviewed)
     return {
         "role": role,
         "summary": f"{role}: objective '{objective}' is {'acceptable with notes' if recommendation != 'revise' else 'not ready'}.",
@@ -88,6 +93,8 @@ def _build_perspective(role: str, objective: str, workspace: Path) -> dict[str, 
         "recommendation": recommendation,
         "concerns": [signal for signal in signals if "blocking" in signal.lower() or "violat" in signal.lower()],
         "artifacts": [str(workspace / name) for name in ("PERSONALITY.md", "GOAL.md", "NOTES.md", "TODO.md", "REJECTED.md")],
+        "files": reviewed,
+        "improvements": improvements,
         "timestamp": time.time(),
     }
 
@@ -162,6 +169,68 @@ def _product_signals(text: str) -> list[str]:
     return signals or ["scope/value appears bounded"]
 
 
+def _reviewed_files(project_root: Path, objective: str) -> list[str]:
+    keywords = [part.lower() for part in objective.replace(",", " ").replace(";", " ").split() if len(part) > 3]
+    scored: list[tuple[int, Path]] = []
+    for path in project_root.rglob("*"):
+        if not path.is_file() or not path.exists():
+            continue
+        try:
+            rel = path.relative_to(project_root)
+        except ValueError:
+            continue
+        if rel.parts and rel.parts[0] in {".git", ".venv", "__pycache__", "node_modules", ".mypy_cache", ".ruff_cache"}:
+            continue
+        if path.suffix.lower() not in {".py", ".toml", ".cfg", ".ini", ".md", ".json", ".yaml", ".yml", ".txt"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore").lower()
+        except Exception:
+            continue
+        score = sum(text.count(keyword) for keyword in keywords)
+        if score:
+            scored.append((score, path))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [str(path) for _, path in scored[:8]]
+
+
+def _suggest_improvements(role: str, objective: str, files: list[str]) -> list[str]:
+    suggestions: list[str] = []
+    objective_lower = objective.lower()
+    if role == "engineer":
+        if any("meeting" in path.lower() for path in files):
+            suggestions.append("meeting_room agents currently use keyword heuristics; consider integrating LLM-backed analysis instead of echo summaries")
+        if any("mcp" in path.lower() for path in files):
+            suggestions.append("MCP tool wrappers should validate schema inputs and surface structured errors")
+        if "loop" in objective_lower or "timer" in objective_lower:
+            suggestions.append("Loop B service/timer wiring should have an explicit readiness probe before promotion")
+        if "robust" in objective_lower or "testable" in objective_lower:
+            suggestions.append("Add failure-injection tests for CEO boundary, StateStore TTL, and PromotionGate")
+    if role == "architect":
+        if any("plugin" in path.lower() for path in files):
+            suggestions.append("Plugin interface should declare capability versioning instead of ad-hoc JSON")
+        if any("mcp" in path.lower() for path in files):
+            suggestions.append("MCP server should advertise only implemented tools; remove stale placeholders")
+        if "production-ready" in objective_lower:
+            suggestions.append("Introduce typed event contracts between CEO, CTO Manager, and MeetingRoom")
+    if role == "security":
+        if any("state" in path.lower() for path in files):
+            suggestions.append("StateStore should enforce least-privilege filesystem permissions on SQLite WAL/journal files")
+        if any("mcp" in path.lower() for path in files):
+            suggestions.append("MCP input validation should reject oversized payloads before argument parsing")
+    if role == "qa":
+        if any("test" in path.lower() for path in files):
+            suggestions.append("Increase coverage in runtime/meeting_room and runtime/glideloop_orchestrator/main.py")
+        if "e2e" in objective_lower:
+            suggestions.append("E2E verification should assert real side effects, not just exit codes")
+    if role == "product":
+        if "production-ready" in objective_lower:
+            suggestions.append("Surface a single user-facing status command instead of split ceo_status/glideloop_status")
+        if any("plugin" in path.lower() for path in files):
+            suggestions.append("Document plugin lifecycle: install, register, run, verify, upgrade")
+    return suggestions or [f"{role}: no concrete file-backed improvements found for this objective"]
+
+
 @dataclass(frozen=True)
 class MeetingBrief:
     objective: str
@@ -178,6 +247,7 @@ class PersonalityAgent:
     role: str
     objective: str
     workspace: Path
+    project_root: Path | None = None
 
     def __post_init__(self) -> None:
         self.workspace.mkdir(parents=True, exist_ok=True)
@@ -240,37 +310,35 @@ class PersonalityAgent:
     def run(self) -> dict[str, Any]:
         timestamp = time.time()
         log_event(_LOGGER, "meeting_role_started", {"role": self.role, "objective": self.objective})
-        perspective = _build_perspective(self.role, self.objective, self.workspace)
-        (self.workspace / "NOTES.md").write_text(
-            "\n".join(
-                [
-                    f"## {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(timestamp))}",
-                    f"Evaluated objective from {self.role} perspective.",
-                    "",
-                    "### Key Signals",
-                    *[f"- {line}" for line in perspective.get("signals", [])],
-                    "",
-                    "### Decision",
-                    f"- recommendation={perspective.get('recommendation', 'unknown')}",
-                    f"- constraints_met={perspective.get('constraints_met', True)}",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        perspective = _build_perspective(self.role, self.objective, self.workspace, self.project_root)
+        notes = [
+            f"## {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(timestamp))}",
+            f"Evaluated objective from {self.role} perspective.",
+            "",
+            "### Key Signals",
+            *[f"- {line}" for line in perspective.get("signals", [])],
+            "",
+            "### Decision",
+            f"- recommendation={perspective.get('recommendation', 'unknown')}",
+            f"- constraints_met={perspective.get('constraints_met', True)}",
+        ]
+        if perspective.get("files"):
+            notes.extend(["", "### Files Reviewed", *[f"- {path}" for path in perspective.get("files", [])[:8]]])
+        (self.workspace / "NOTES.md").write_text("\n".join(notes) + "\n", encoding="utf-8")
         log_event(_LOGGER, "meeting_role_completed", {"role": self.role, "recommendation": perspective["recommendation"]})
         return perspective
 
 
 class MeetingRoom:
-    def __init__(self, objective: str, roles: list[str] | None = None, minutes_dir: str | None = None) -> None:
+    def __init__(self, objective: str, roles: list[str] | None = None, minutes_dir: str | None = None, project_root: str | Path | None = None) -> None:
         self.objective = objective
         self.roles = roles or _DEFAULT_ROLES
-        root = Path("/home/gfardad/projects/glideloop")
+        root = Path(project_root) if project_root else Path("/home/gfardad/projects/glideloop")
         self.room_dir = root / "runtime" / "meeting_room"
         self.room_dir.mkdir(parents=True, exist_ok=True)
         self.minutes_dir = Path(minutes_dir) if minutes_dir else self.room_dir / "minutes"
         self.minutes_dir.mkdir(parents=True, exist_ok=True)
+        self.project_root = root
 
     def run(self) -> MeetingBrief:
         started = time.time()
@@ -278,7 +346,7 @@ class MeetingRoom:
         outcomes: list[dict[str, Any]] = []
         for index, role in enumerate(self.roles):
             workspace = self.room_dir / "agents" / f"{role}-{index}"
-            agent = PersonalityAgent(role=role, objective=self.objective, workspace=workspace)
+            agent = PersonalityAgent(role=role, objective=self.objective, workspace=workspace, project_root=self.project_root)
             outcomes.append(agent.run())
 
         disagreements: list[dict[str, Any]] = []
@@ -307,6 +375,16 @@ class MeetingRoom:
         ]
         for outcome in outcomes:
             lines.extend([f"- {outcome['role']}: {outcome.get('summary', '')}", f"  recommendation={outcome.get('recommendation', 'unknown')}"])
+            files = outcome.get("files")
+            if files:
+                lines.extend(["", f"  Files reviewed:"])
+                for file_path in files:
+                    lines.append(f"    - {file_path}")
+            improvements = outcome.get("improvements")
+            if improvements:
+                lines.extend(["", f"  Suggested improvements:"])
+                for item in improvements:
+                    lines.append(f"    - {item}")
         lines.extend(
             [
                 "## Agreements",
