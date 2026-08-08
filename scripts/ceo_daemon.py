@@ -305,6 +305,17 @@ def monitor_loop() -> None:
                 "Run quality gates",
             )
 
+            # Run code-review-graph if available
+            crg_bin = REPO_ROOT / ".venv" / "bin" / "code-review-graph"
+            if not crg_bin.exists():
+                crg_bin = Path("/tmp/bench-installs/.venv/bin/code-review-graph")
+            if crg_bin.exists():
+                inject_improvement_task(
+                    "code_review_graph",
+                    f"cd '{REPO_ROOT}' && {crg_bin} status || true",
+                    "Run code review graph status",
+                )
+
             # Alert on known production blocker
             if counters.get("mcp_tool_calls", 0) > 0:
                 inject_improvement_task(
