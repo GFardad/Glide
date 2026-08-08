@@ -208,6 +208,8 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
         pending = store.get("worker", "pending") or []
         if any(existing.get("type") == task_type for existing in pending):
             return
+        if len(pending) >= 5:
+            return
         pending.append(task)
         store.set("worker", "pending", pending)
         print(f"[ceo-daemon] Injected task: {task_type} - {objective}")
