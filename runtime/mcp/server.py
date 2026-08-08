@@ -667,6 +667,46 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
         except Exception as exc:
             return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
 
+    if name == "session_watchdog_scan":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.meta.watchdog.session_watchdog import SessionWatchdog
+
+            watchdog = SessionWatchdog(root=arguments.get("root"))
+            results = watchdog.stale_or_worse()
+            return json.dumps(
+                {
+                    "status": "ok",
+                    "stale": len(results),
+                    "items": [
+                        {
+                            "session_id": r.session_id,
+                            "agent_id": r.agent_id,
+                            "age_seconds": round(r.age_seconds, 1),
+                            "status": r.status,
+                            "verdict": r.verdict,
+                            "detail": r.detail,
+                            "pid": r.pid,
+                            "log_gap_seconds": round(r.log_gap_seconds, 1) if r.log_gap_seconds is not None else None,
+                        }
+                        for r in results
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "session_watchdog":
+        increment("mcp_tool_calls")
+        try:
+            from scripts.watchdog_batch import run_parallel_health_checks
+
+            report = run_parallel_health_checks(root=arguments.get("root"), max_workers=int(arguments.get("max_workers", 8) or 8))
+            return json.dumps(report, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
     if name == "ceo_spec":
         increment("mcp_tool_calls")
         try:
