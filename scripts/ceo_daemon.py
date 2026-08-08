@@ -178,9 +178,28 @@ def drive_pipeline(status: dict) -> dict:
     return pipeline
 
 
+def _latest_orchestrator_session_id() -> str | None:
+    """Return the most recent orchestrator session id, if any."""
+    db_path = STATE_DIR / "glideloop_orchestrator.sqlite"
+    if not db_path.exists():
+        return None
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            row = conn.execute(
+                "SELECT session_id FROM sessions ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
 def ceo_directive(objective: str) -> None:
     payload = {
-        "objective": objective,
         "source": "ceo-daemon",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
