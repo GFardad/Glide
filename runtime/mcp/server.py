@@ -329,6 +329,20 @@ def _list_todos(session_id: str) -> dict[str, Any]:
     return {"session_id": session_id, "todos": items}
 
 
+def _count_worker_processed() -> int:
+    try:
+        log_path = Path(__file__).resolve().parent.parent / "state" / "logs" / "worker.jsonl"
+        count = 0
+        if log_path.exists():
+            with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+                for line in handle:
+                    if "\"event\": \"execution_result\"" in line or "\"event\": \"session_processed\"" in line:
+                        count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def handle_tool(name: str, arguments: dict[str, Any]) -> str:
     from runtime.observability.counters import increment
 
