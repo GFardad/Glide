@@ -249,9 +249,9 @@ def monitor_loop() -> None:
             print(f"[ceo-daemon] active_sessions: {active_sessions}")
             print(f"[ceo-daemon] dev_status: {dev_status}")
 
-            # Drive planning/execution when idle
-            if active_sessions == 0 and not sessions:
-                print("[ceo-daemon] No active work. Driving CEO pipeline...")
+            # Drive planning/execution when there is no measurable productive output
+            if counters.get("sessions_started", 0) == 0 and not sessions:
+                print("[ceo-daemon] No productive work detected. Driving CEO pipeline...")
                 drive_pipeline(status)
                 ceo_directive("Continue production improvements and maintain quality gates")
             else:
