@@ -196,6 +196,12 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
             from runtime.observability.counters import get_counters
 
             counters = get_counters()
+            try:
+                from runtime.ceo.ceo import CEO
+
+                ceo_status = CEO().execute("status")
+            except Exception:
+                ceo_status = {}
             return json.dumps(
                 {
                     "status": "ok",
@@ -208,7 +214,10 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
                         "loop_b_hints_injected": counters.loop_b_hints_injected,
                         "loop_a_promotions": counters.loop_a_promotions,
                         "loop_a_rollbacks": counters.loop_a_rollbacks,
+                        "mcp_tool_calls": counters.mcp_tool_calls,
                     },
+                    "teams": ceo_status.get("teams", {}),
+                    "dev_env": ceo_status.get("dev_env", {}),
                 },
                 ensure_ascii=False,
             )
