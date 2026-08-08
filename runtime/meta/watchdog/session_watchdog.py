@@ -131,6 +131,9 @@ def check_agent_health(agent_dir: Path, root: Path) -> SessionHealth:
     if status in ("failed", "error"):
         verdict = "dead"
         detail = f"session status={status}"
+    elif pid is not None and not _pid_alive(pid):
+        verdict = "dead"
+        detail = f"worker pid {pid} not running"
     elif age_seconds > _SESSION_MAX_AGE_SECONDS:
         verdict = "zombie"
         detail = f"session older than 24h ({age_seconds / 3600:.1f}h)"
@@ -140,9 +143,6 @@ def check_agent_health(agent_dir: Path, root: Path) -> SessionHealth:
     elif age_seconds > _MAX_WORKER_AGE_SECONDS and log_gap_seconds is None:
         verdict = "stale"
         detail = "session >15min with no log file"
-    elif pid is not None and not _pid_alive(pid):
-        verdict = "dead"
-        detail = f"worker pid {pid} not running"
 
     return SessionHealth(
         session_id=session_id,
