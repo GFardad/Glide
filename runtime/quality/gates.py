@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -96,7 +97,7 @@ class PromotionGate:
     def _check_tests(self) -> bool:
         try:
             result = subprocess.run(
-                ["python3", "-m", "pytest", "-q"],
+                [sys.executable, "-m", "pytest", "-q"],
                 cwd=str(self.root),
                 capture_output=True,
                 text=True,
