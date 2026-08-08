@@ -104,27 +104,34 @@ def ensure_worker_running() -> None:
 
 def find_todos() -> list[dict]:
     """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
-    items = []
+    items: list[dict] = []
     try:
         for py_file in REPO_ROOT.glob("runtime/**/*.py"):
             text = py_file.read_text(encoding="utf-8", errors="ignore")
             for lineno, line in enumerate(text.splitlines(), 1):
-                if "TODO" in line or "FIXME" in line or "HACK" in line:
-                    if any(skip in line for skip in [
-                        'if "TODO"', "if 'TODO'",
-                        'if "FIXME"', "if 'FIXME'",
-                        "detect_todo", "_detect_todo",
-                        'if "FIXME" in text or "TODO" in text',
-                    ]):
-                        continue
-                    items.append(
-                        {
-                            "file": str(py_file.relative_to(REPO_ROOT)),
-                            "line": lineno,
-                            "text": line.strip(),
-                            "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
-                        }
-                    )
+                if "TODO" not in line and "FIXME" not in line and "HACK" not in line:
+                    continue
+                normalized = line.strip()
+                lowered = normalized.lower()
+                skip_patterns = [
+                    'if "todo"', "if 'todo'",
+                    'if "fixme"', "if 'fixme'",
+                    "detect_todo", "_detect_todo",
+                    'if "fixme" in text or "todo" in text',
+                    "todo.md", "goal.md",
+                    "loop_b hint: break the current todo",
+                    'if "FIXME" in text or "TODO" in text',
+                ]
+                if any(pattern.lower() in lowered for pattern in skip_patterns):
+                    continue
+                items.append(
+                    {
+                        "file": str(py_file.relative_to(REPO_ROOT)),
+                        "line": lineno,
+                        "text": normalized,
+                        "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
+                    }
+                )
     except Exception as exc:
         print(f"[ceo-daemon] TODO scan failed: {exc}")
     return items[:10]
