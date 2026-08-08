@@ -54,3 +54,13 @@ def increment(name: str, amount: int = 1) -> None:
     with _LOCK:
         _COUNTERS = Counters(**{** _COUNTERS.__dict__, name: getattr(_COUNTERS, name) + amount})
     log_event(_LOGGER, "counter_incremented", {"name": name, "amount": amount, "value": getattr(_COUNTERS, name)})
+
+
+def total() -> int:
+    with _LOCK:
+        return sum(_COUNTERS.__dict__.values())
+
+
+def snapshot() -> dict[str, int]:
+    with _LOCK:
+        return dict(_COUNTERS.__dict__)

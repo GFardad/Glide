@@ -179,6 +179,17 @@ def handle_tool(name: str, arguments: dict[str, Any]) -> str:
     if len(encoded) > 8192:
         return json.dumps({"status": "error", "detail": f"arguments too large: {len(encoded)} bytes, max 8192"}, ensure_ascii=False)
 
+    try:
+        from runtime.observability.middleware import mcp_middleware
+        return mcp_middleware(name, arguments, _dispatch_tool)
+    except Exception as exc:
+        return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+
+from runtime.observability.counters import increment
+
+
+def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
     if name == "glideloop_status":
         increment("mcp_tool_calls")
         try:

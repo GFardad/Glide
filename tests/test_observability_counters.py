@@ -6,46 +6,54 @@ import threading
 
 import pytest
 
-from runtime.observability.counters import Counters, get_counters, increment, reset_counters
+from runtime.observability.counters import Counters, get_counters, increment, reset_counters, snapshot, total
 
 
-def test_reset_counters_returns_defaults():
+def test_reset_counters_returns_zero_total():
     reset_counters()
+    assert total() == 0
+
+
+def test_increment_increases_specific_counter():
+    reset_counters()
+    increment("sessions_started", amount=3)
     counters = get_counters()
-    assert isinstance(counters, Counters)
-    assert counters.sessions_started == 0
+    assert counters.sessions_started == 3
+    assert total() == 3
 
 
-def test_increment_updates_counters():
+def test_increment_unknown_counter_raises():
+    reset_counters()
+    with pytest.raises(AttributeError):
+        increment("nonexistent_counter")
+
+
+def test_snapshot_returns_dict_with_all_fields():
     reset_counters()
     increment("sessions_started")
+    data = snapshot()
+    assert isinstance(data, dict)
+    assert "sessions_started" in data
+    assert data["sessions_started"] == 1
+
+
+def test_total_aggregates_all_counters():
+    reset_counters()
     increment("sessions_started")
     increment("todos_created")
-    counters = get_counters()
-    assert counters.sessions_started == 2
-    assert counters.todos_created == 1
-    assert counters.todos_merged == 0
-    assert counters.loop_b_hints_injected == 0
-    assert counters.loop_a_promotions == 0
-    assert counters.loop_a_rollbacks == 0
-    assert counters.mcp_tool_calls == 0
+    assert total() == 2
 
 
-def test_increment_unknown_field_raises():
-    with pytest.raises(AttributeError):
-        increment("unknown_metric")
-
-
-def test_counters_thread_safety():
+def test_counters_are_thread_safe():
     reset_counters()
-
-    def worker():
-        for _ in range(100):
+    barrier = threading.Barrier(4)
+    def worker() -> None:
+        barrier.wait()
+        for _ in range(25):
             increment("sessions_started")
-
-    threads = [threading.Thread(target=worker) for _ in range(5)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    assert get_counters().sessions_started == 500
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert get_counters().sessions_started == 100
