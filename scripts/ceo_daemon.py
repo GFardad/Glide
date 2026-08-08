@@ -328,9 +328,9 @@ def monitor_loop() -> None:
             if counters.get("sessions_processed_by_worker", 0) == 0 and not sessions:
                 print("[ceo-daemon] No productive work detected. Driving CEO pipeline...")
                 drive_pipeline(status)
-                ceo_directive("Continue production improvements and maintain quality gates")
+                ceo_directive(_build_directive_objective(status))
             else:
-                ceo_directive("Continue current production improvements")
+                ceo_directive(_build_directive_objective(status))
 
             # Drive real orchestrator sessions on a schedule so sessions_started advances
             if cycle % 8 == 0:
