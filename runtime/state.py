@@ -84,10 +84,16 @@ class StateStore:
     def get(self, table: str, key: str) -> Optional[Any]:
         with self._lock:
             self._cleanup_expired()
-            row = self._conn.execute("SELECT value FROM records WHERE table_name = ? AND key = ?", (table, key)).fetchone()
+            row = self._conn.execute(
+                "SELECT value FROM records WHERE table_name = ? AND key = ?", (table, key)
+            ).fetchone()
             if row is None:
                 return None
-            return json.loads(row["value"])
+            try:
+                return json.loads(row["value"])
+            except json.JSONDecodeError:
+                _LOGGER.warning("Corrupted state record %s/%s", table, key)
+                return None
 
     def delete(self, table: str, key: str) -> None:
         with self._lock:
@@ -97,8 +103,16 @@ class StateStore:
     def list_table(self, table: str) -> dict[str, Any]:
         with self._lock:
             self._cleanup_expired()
-            rows = self._conn.execute("SELECT key, value FROM records WHERE table_name = ?", (table,)).fetchall()
-            return {row["key"]: json.loads(row["value"]) for row in rows}
+            rows = self._conn.execute(
+                "SELECT key, value FROM records WHERE table_name = ?", (table,)
+            ).fetchall()
+            result: dict[str, Any] = {}
+            for row in rows:
+                try:
+                    result[row["key"]] = json.loads(row["value"])
+                except json.JSONDecodeError:
+                    _LOGGER.warning("Corrupted state record %s/%s", table, row["key"])
+            return result
 
     def clear(self) -> None:
         with self._lock:
