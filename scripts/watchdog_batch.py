@@ -204,8 +204,10 @@ def _restart_session(session_id: str, root: Path) -> dict[str, Any]:
             text=True,
             timeout=120,
         )
-        if proc.stdout.strip():
-            result = _json.loads(proc.stdout.strip())
+        raw = proc.stdout.strip()
+        if raw:
+            last_line = raw.splitlines()[-1]
+            result = _json.loads(last_line)
             return {"session_id": session_id, "action": "restart", "result": result}
     except Exception as exc:
         return {"session_id": session_id, "action": "restart", "error": str(exc)}
