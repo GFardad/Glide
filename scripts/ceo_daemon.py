@@ -271,11 +271,12 @@ def monitor_loop() -> None:
             # Drive real orchestrator sessions on a schedule so sessions_started advances
             if cycle % 8 == 0:
                 print("[ceo-daemon] Driving orchestrator session...")
-                inject_improvement_task(
-                    "orchestrator_run",
-                    "glideloop_run --objective 'Self-improve production readiness via CEO daemon' || true",
-                    "Drive real orchestrator session for production self-improvement",
-                )
+                try:
+                    latest_session_id = _latest_orchestrator_session_id()
+                except Exception:
+                    latest_session_id = None
+                if not latest_session_id:
+                    mcp("glideloop_run", {"objective": "Self-improve production readiness via CEO daemon"})
 
             # If dev is idle, try to activate it with real work
             if dev_status == "idle":
