@@ -424,8 +424,8 @@ def monitor_loop() -> None:
                 if stale_count:
                     inject_improvement_task(
                         "session_recovery",
-                        f"python3 scripts/watchdog_batch.py",
-                        f"Recover {stale_count} stale/dead/zombie sessions: {watchdog_verdicts}",
+                        "python3 scripts/watchdog_batch.py --auto-recover",
+                        f"Auto-recover {stale_count} stale/dead/zombie sessions: {watchdog_verdicts}",
                     )
 
             # Quality gate before push
