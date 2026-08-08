@@ -107,43 +107,6 @@ mcp_servers:
 
 ---
 
-### 2.3 `glideloop_session_status`
-**Purpose:** Detailed status for a specific session.
-
-**Input:**
-```json
-{
-  "session_id": "abc123"
-}
-```
-
-**Output:**
-```json
-{
-  "session_id": "abc123",
-  "objective": "Build a REST auth module with JWT",
-  "status": "running | paused | completed | failed",
-  "phase": "meeting | execution | review | completed",
-  "progress": {
-    "meeting_round": 2,
-    "teams_active": 3,
-    "todos_completed": 12,
-    "todos_total": 25
-  },
-  "agents": [
-    {
-      "agent_id": "eng-042",
-      "role": "Engineer",
-      "team": "Engineering",
-      "status": "active | stuck | idle | completed",
-      "current_todo": "Implement JWT endpoint",
-      "last_active": "2026-08-05T00:15:00Z"
-    }
-  ],
-  "logs_url": "glideloop://logs/abc123"
-}
-```
-
 ---
 
 ### 2.4 `glideloop_stop`

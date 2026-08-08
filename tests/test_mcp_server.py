@@ -124,3 +124,21 @@ def test_handle_version_list():
     payload = json.loads(handle_tool("version_list", {}))
     assert payload["status"] == "ok"
     assert "versions" in payload
+
+
+def test_handle_tool_validates_required_fields():
+    payload = json.loads(handle_tool("glideloop_run", {}))
+    assert payload["status"] == "error"
+    assert "missing required fields" in payload["detail"]
+
+
+def test_handle_tool_validates_argument_types():
+    payload = json.loads(handle_tool("version_create", {"version": 123}))
+    assert payload["status"] == "error"
+    assert "validation_errors" in payload
+
+
+def test_handle_loop_b_readiness():
+    payload = json.loads(handle_tool("loop_b_readiness", {}))
+    assert payload["status"] == "ok"
+    assert payload["ready"] is True

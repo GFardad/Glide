@@ -140,12 +140,63 @@ TOOLS = [
         "description": "List all versions.",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "loop_b_readiness",
+        "description": "Return Loop B readiness status from lightweight component checks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace": {"type": "string"},
+                "root": {"type": "string"},
+            },
+        },
+    },
 ]
 
 
 def _resolve_session_dir(session_id: str) -> str:
     base = os.environ.get("GLIDELOOP_WORKSPACE", "/tmp/glideloop-workspace")
     return os.path.join(base, session_id)
+
+
+_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {tool["name"]: tool.get("inputSchema", {}) for tool in TOOLS}
+
+
+def _validate_arguments(name: str, arguments: dict[str, Any]) -> dict[str, Any] | None:
+    schema = _TOOL_SCHEMAS.get(name)
+    if not schema:
+        return None
+    if not isinstance(arguments, dict):
+        return {"status": "error", "detail": "arguments must be a JSON object"}
+    required = schema.get("required", [])
+    missing = [field for field in required if field not in arguments or arguments.get(field) in (None, "")]
+    if missing:
+        return {
+            "status": "error",
+            "detail": f"missing required fields: {', '.join(missing)}",
+            "missing": missing,
+        }
+    properties = schema.get("properties", {})
+    errors: list[str] = []
+    for key, value in arguments.items():
+        expected = properties.get(key)
+        if not expected:
+            continue
+        if expected.get("type") == "string" and not isinstance(value, str):
+            errors.append(f"{key} must be a string")
+        elif expected.get("type") == "integer" and not isinstance(value, int):
+            errors.append(f"{key} must be an integer")
+        elif expected.get("type") == "array" and not isinstance(value, list):
+            errors.append(f"{key} must be an array")
+        elif expected.get("type") == "object" and not isinstance(value, dict):
+            errors.append(f"{key} must be an object")
+        if errors:
+            return {
+                "status": "error",
+                "detail": "; ".join(errors),
+                "validation_errors": errors,
+            }
+    return None
 
 
 def _list_todos(session_id: str) -> dict[str, Any]:
@@ -173,6 +224,9 @@ def _list_todos(session_id: str) -> dict[str, Any]:
 def handle_tool(name: str, arguments: dict[str, Any]) -> str:
     from runtime.observability.counters import increment
 
+    validation_error = _validate_arguments(name, arguments if isinstance(arguments, dict) else {})
+    if validation_error is not None:
+        return json.dumps(validation_error, ensure_ascii=False)
     if not isinstance(arguments, dict):
         return json.dumps({"status": "error", "detail": "arguments must be a JSON object"}, ensure_ascii=False)
     encoded = json.dumps(arguments, ensure_ascii=False)
@@ -397,6 +451,29 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
             lifecycle = VersionLifecycle(root)
             versions = lifecycle.list_versions()
             return json.dumps({"status": "ok", "versions": versions}, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "loop_b_readiness":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.meta.loop_b.readiness import readiness
+
+            probe = readiness(
+                workspace=arguments.get("workspace"),
+                root=arguments.get("root"),
+            )
+            return json.dumps(
+                {
+                    "status": "ok",
+                    "ready": probe.monitor and probe.intervention and probe.learning,
+                    "monitor": probe.monitor,
+                    "intervention": probe.intervention,
+                    "learning": probe.learning,
+                    "details": probe.details,
+                },
+                ensure_ascii=False,
+            )
         except Exception as exc:
             return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
 
