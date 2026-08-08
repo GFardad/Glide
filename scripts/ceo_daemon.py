@@ -164,7 +164,9 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
 
 def quality_gate() -> dict:
     """Run tests and return pass/fail summary."""
-    proc = run([sys.executable, "-m", "pytest", "-q", "--tb=no"])
+    venv_python = REPO_ROOT / ".venv" / "bin" / "python3"
+    python = str(venv_python) if venv_python.exists() else sys.executable
+    proc = run([python, "-m", "pytest", "-q", "--tb=no"])
     passed = proc.returncode == 0
     output = proc.stdout.strip()
     return {
