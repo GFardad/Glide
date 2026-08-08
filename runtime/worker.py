@@ -174,28 +174,8 @@ class Worker:
                         store.set("worker", "pending", pending)
                     except Exception:
                         pass
-            # Self-improvement: if queue is empty after this run, inject a follow-up task
-            # so GlideLoop keeps working on itself without manual intervention.
-            store = None
-            try:
-                from runtime.state import StateStore
-                store = StateStore(self.config.state_dir)
-                current_pending = store.get("worker", "pending")
-            except Exception:
-                current_pending = None
-            if not current_pending:
-                follow_up = {
-                    "id": f"self-improve-{int(__import__('time').time())}",
-                    "type": "self_improve",
-                    "command": "echo \"Self-improvement loop: analyzing runtime for improvements\"; find runtime -name '*.py' -print | head -20",
-                    "context": {"objective": "Continuous self-improvement", "parent_task_id": task_id},
-                    "created_at": __import__("time").time(),
-                }
-                if store is not None:
-                    try:
-                        store.set("worker", "pending", [follow_up])
-                    except Exception:
-                        pass
+            # Self-improvement is handled by the CEO daemon.
+            # Avoid duplicating trivial follow-up work here.
 
     def _execute_item(self, item: dict[str, Any]) -> None:
         """Execute a single work item via execution backend."""
