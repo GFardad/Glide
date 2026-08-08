@@ -95,9 +95,11 @@ def test_handle_ceo_execute_register_team():
 
 
 def test_handle_ceo_execute_broadcast():
+    register_payload = json.loads(handle_tool("ceo_execute", {"command": "register_team", "payload": {"name": "broadcast-test", "config": {}}}))
+    assert register_payload["status"] == "ok"
     payload = json.loads(handle_tool("ceo_execute", {"command": "broadcast", "payload": {"message": "sync now"}}))
     assert payload["status"] == "ok"
-    assert payload["count"] == 0
+    assert payload["count"] >= 1
 
 
 def test_handle_ceo_status():

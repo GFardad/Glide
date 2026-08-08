@@ -13,6 +13,7 @@ from runtime.dev_env import DevEnvironment, DevSession
 from runtime.manager.decisions import DecisionEngine
 from runtime.logging import get_logger, log_event
 from runtime.observability.counters import increment
+from runtime.state import StateStore
 
 logger = get_logger("glideloop.manager")
 
@@ -38,6 +39,21 @@ class CTOManager:
         self.actions: list[dict[str, Any]] = []
         self._last_check = 0.0
         self._dev_env = DevEnvironment(self.config.root)
+        self._store = StateStore(self.config.root / "runtime" / "state")
+        self._load()
+
+    def _load(self) -> None:
+        stored = self._store.get("cto_manager", "state")
+        if stored:
+            self.teams = stored.get("teams", {})
+            self.actions = stored.get("actions", [])
+
+    def _save(self) -> None:
+        self._store.set(
+            "cto_manager",
+            "state",
+            {"teams": self.teams, "actions": self.actions},
+        )
 
     def register_team(self, name: str, config: dict[str, Any]) -> None:
         """Register a team for management."""
@@ -51,11 +67,13 @@ class CTOManager:
         increment("manager_teams_registered")
         log_event(logger, "manager_team_registered", payload={"name": name, "config": config})
         logger.info("Registered team: %s", name)
+        self._save()
 
     def start_dev_session(self, session_id: str | None = None) -> DevSession:
         """Start a dev session."""
         session = self._dev_env.create_dev_session(session_id or f"dev-{time.time_ns()}")
         log_event(logger, "dev_session_started", payload={"session_id": session.session_id})
+        self._save()
         return session
 
     def check_teams(self) -> dict[str, Any]:
@@ -85,6 +103,7 @@ class CTOManager:
         self.actions.append(action)
         log_event(logger, "manager_escalation", payload=action)
         logger.warning("Escalated team %s: %s", team, reason)
+        self._save()
         return action
 
     def update_team_status(self, team: str, status: str) -> None:

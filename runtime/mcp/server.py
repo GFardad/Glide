@@ -356,6 +356,7 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
         increment("mcp_tool_calls")
         try:
             from runtime.observability.counters import get_counters
+            from runtime.glideloop_orchestrator.state import OrchestratorState
 
             counters = get_counters()
             try:
@@ -364,11 +365,32 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
                 ceo_status = CEO().execute("status")
             except Exception:
                 ceo_status = {}
+            from pathlib import Path
+            db_path = os.path.join(os.path.dirname(__file__), "..", "state", "glideloop_orchestrator.sqlite")
+            state = OrchestratorState(db_path=Path(db_path))
+            conn = state.connect()
+            rows = conn.execute(
+                "SELECT session_id, objective, status, cwd, created_at FROM sessions ORDER BY created_at DESC"
+            ).fetchall()
+            sessions = [
+                {
+                    "session_id": row["session_id"],
+                    "objective": row["objective"],
+                    "status": row["status"],
+                    "cwd": row["cwd"],
+                    "created_at": row["created_at"],
+                }
+                for row in rows
+            ]
+            orchestrator = {
+                "session_count": len(sessions),
+                "active_sessions": sum(1 for session in sessions if session["status"] == "running"),
+            }
             return json.dumps(
                 {
                     "status": "ok",
-                    "orchestrator": {},
-                    "sessions": [],
+                    "orchestrator": orchestrator,
+                    "sessions": sessions,
                     "counters": {
                         "sessions_started": counters.sessions_started,
                         "todos_created": counters.todos_created,
@@ -377,6 +399,7 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
                         "loop_a_promotions": counters.loop_a_promotions,
                         "loop_a_rollbacks": counters.loop_a_rollbacks,
                         "mcp_tool_calls": counters.mcp_tool_calls,
+                        "production_sessions_created": counters.production_sessions_created,
                     },
                     "teams": ceo_status.get("teams", {}),
                     "dev_env": ceo_status.get("dev_env", {}),

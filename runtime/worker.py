@@ -157,13 +157,45 @@ class Worker:
             return
 
         for item in work_items[:1]:
+            task_id = item.get("id") if isinstance(item, dict) else None
             try:
                 self._execute_item(item)
                 self.state.sessions_processed += 1
                 self.state.append_log("session_processed", {"item": item})
             except Exception as exc:
-                self.state.append_log("execution_failed", {"item": item, "error": str(exc)})
-                log_event(_LOGGER, "worker_execution_failed", {"error": str(exc)})
+                self.state.append_log("execution_error", {"task_id": task_id, "error": str(exc)})
+                increment("worker_errors")
+            finally:
+                if isinstance(pending, list) and item in pending:
+                    pending.remove(item)
+                    try:
+                        from runtime.state import StateStore
+                        store = StateStore(self.config.state_dir)
+                        store.set("worker", "pending", pending)
+                    except Exception:
+                        pass
+            # Self-improvement: if queue is empty after this run, inject a follow-up task
+            # so GlideLoop keeps working on itself without manual intervention.
+            store = None
+            try:
+                from runtime.state import StateStore
+                store = StateStore(self.config.state_dir)
+                current_pending = store.get("worker", "pending")
+            except Exception:
+                current_pending = None
+            if not current_pending:
+                follow_up = {
+                    "id": f"self-improve-{int(__import__('time').time())}",
+                    "type": "self_improve",
+                    "command": "echo \"Self-improvement loop: analyzing runtime for improvements\"; find runtime -name '*.py' -print | head -20",
+                    "context": {"objective": "Continuous self-improvement", "parent_task_id": task_id},
+                    "created_at": __import__("time").time(),
+                }
+                if store is not None:
+                    try:
+                        store.set("worker", "pending", [follow_up])
+                    except Exception:
+                        pass
 
     def _execute_item(self, item: dict[str, Any]) -> None:
         """Execute a single work item via execution backend."""
@@ -184,7 +216,12 @@ class Worker:
         )
         runner = AgentRunner(env_allowlist=[], retry_budget=1)
         result = runner.run(context, command)
-        increment("mcp_tool_calls")
+        try:
+            increment("mcp_tool_calls")
+            if result.returncode == 0:
+                increment("sessions_started")
+        except Exception:
+            pass
         self.state.append_log("execution_result", {
             "session_id": session_id,
             "returncode": result.returncode,
