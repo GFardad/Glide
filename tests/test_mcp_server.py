@@ -142,3 +142,83 @@ def test_handle_loop_b_readiness():
     payload = json.loads(handle_tool("loop_b_readiness", {}))
     assert payload["status"] == "ok"
     assert payload["ready"] is True
+
+
+def test_handle_ceo_spec_requires_objective():
+    payload = json.loads(handle_tool("ceo_spec", {}))
+    assert payload["status"] == "error"
+    assert "objective" in payload["detail"]
+
+
+def test_handle_ceo_plan_requires_spec_session_id():
+    payload = json.loads(handle_tool("ceo_plan", {}))
+    assert payload["status"] == "error"
+    assert "spec_session_id" in payload["detail"]
+
+
+def test_handle_ceo_build_requires_plan_session_id():
+    payload = json.loads(handle_tool("ceo_build", {}))
+    assert payload["status"] == "error"
+    assert "plan_session_id" in payload["detail"]
+
+
+def test_handle_ceo_test_requires_build_session_id():
+    payload = json.loads(handle_tool("ceo_test", {}))
+    assert payload["status"] == "error"
+    assert "build_session_id" in payload["detail"]
+
+
+def test_handle_ceo_review_requires_test_session_id():
+    payload = json.loads(handle_tool("ceo_review", {}))
+    assert payload["status"] == "error"
+    assert "test_session_id" in payload["detail"]
+
+
+def test_handle_ceo_ship_requires_review_session_id():
+    payload = json.loads(handle_tool("ceo_ship", {}))
+    assert payload["status"] == "error"
+    assert "review_session_id" in payload["detail"]
+
+
+def test_handle_ceo_pipeline_phases():
+    spec = json.loads(handle_tool("ceo_spec", {"objective": "test pipeline", "session_id": "spec-1"}))
+    assert spec["status"] == "ok"
+    assert spec["phase"] == "spec"
+
+    plan = json.loads(handle_tool("ceo_plan", {"spec_session_id": "spec-1", "session_id": "plan-1"}))
+    assert plan["status"] == "ok"
+    assert plan["phase"] == "plan"
+
+    build = json.loads(handle_tool("ceo_build", {"plan_session_id": "plan-1", "session_id": "build-1"}))
+    assert build["status"] == "ok"
+    assert build["phase"] == "build"
+
+    test_phase = json.loads(handle_tool("ceo_test", {"build_session_id": "build-1", "session_id": "test-1"}))
+    assert test_phase["status"] == "ok"
+    assert test_phase["phase"] == "test"
+
+    review = json.loads(handle_tool("ceo_review", {"test_session_id": "test-1", "session_id": "review-1"}))
+    assert review["status"] == "ok"
+    assert review["phase"] == "review"
+
+    ship = json.loads(handle_tool("ceo_ship", {"review_session_id": "review-1", "session_id": "ship-1"}))
+    assert ship["status"] == "ok"
+    assert ship["phase"] == "ship"
+
+
+def test_handle_code_review_graph_missing_binary(monkeypatch):
+    monkeypatch.setenv("PATH", "")
+    payload = json.loads(handle_tool("code_review_graph", {"command": "status"}))
+    assert payload["status"] == "error"
+    assert "not found in PATH" in payload["detail"]
+
+
+def test_handle_glideloop_schedule_requires_fields():
+    payload = json.loads(handle_tool("glideloop_schedule", {}))
+    assert payload["status"] == "error"
+
+
+def test_handle_worker_status_missing():
+    payload = json.loads(handle_tool("worker_status", {"root": "/tmp/does-not-exist"}))
+    assert payload["status"] == "error"
+    assert "not found" in payload["detail"]

@@ -15,14 +15,12 @@ from runtime.state import StateStore
 
 logger = get_logger("glideloop.ceo")
 
-
 @dataclass
 class CEOConfig:
     name: str = "Glideloop CEO"
     root: Path = Path("/home/gfardad/projects/glideloop")
     state_file: str = "/tmp/glideloop-ceo-state.json"
     state_dir: Optional[Path] = None
-
 
 class CEO:
     def __init__(self, config: CEOConfig | None = None) -> None:
@@ -42,6 +40,12 @@ class CEO:
 
     def _save_history(self) -> None:
         self._store.set("ceo", "history", {"history": self._history}, ttl_seconds=3600)
+
+    def _record_action(self, action_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+        action = {"type": action_type, "timestamp": __import__('time').time(), **payload}
+        self.cto.actions.append(action)
+        log_event(logger, "ceo_action_recorded", action)
+        return action
 
     def execute(self, command: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = payload or {}
@@ -67,6 +71,7 @@ class CEO:
             else:
                 self.cto.register_team(name, config)
                 result = {"command": command, "status": "ok", "team": name}
+                self._record_action("team_registered", {"team": name, "config": config})
 
         elif command == "check_teams":
             statuses = self.cto.check_teams()
@@ -112,6 +117,7 @@ class CEO:
                 "branch": session.branch,
                 "workspace": str(session.workspace),
             }
+            self._record_action("dev_session_started", result)
 
         elif command == "status":
             status = self.cto.status()
@@ -125,6 +131,108 @@ class CEO:
             else:
                 action = self.cto.escalate(team, reason)
                 result = {"command": command, "status": "ok", **action}
+
+        elif command == "spec":
+            objective = payload.get("objective", "")
+            if not objective:
+                result = {"command": command, "status": "error", "detail": "objective required"}
+            else:
+                session_id = payload.get("session_id") or f"spec-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "spec",
+                    "session_id": session.session_id,
+                    "objective": objective,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_spec", result)
+
+        elif command == "plan":
+            spec_session_id = payload.get("spec_session_id") or payload.get("session_id")
+            if not spec_session_id:
+                result = {"command": command, "status": "error", "detail": "spec_session_id required"}
+            else:
+                session_id = f"plan-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "plan",
+                    "session_id": session.session_id,
+                    "spec_session_id": spec_session_id,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_plan", result)
+
+        elif command == "build":
+            plan_session_id = payload.get("plan_session_id") or payload.get("session_id")
+            if not plan_session_id:
+                result = {"command": command, "status": "error", "detail": "plan_session_id required"}
+            else:
+                session_id = f"build-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "build",
+                    "session_id": session.session_id,
+                    "plan_session_id": plan_session_id,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_build", result)
+
+        elif command == "test":
+            build_session_id = payload.get("build_session_id") or payload.get("session_id")
+            if not build_session_id:
+                result = {"command": command, "status": "error", "detail": "build_session_id required"}
+            else:
+                session_id = f"test-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "test",
+                    "session_id": session.session_id,
+                    "build_session_id": build_session_id,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_test", result)
+
+        elif command == "review":
+            test_session_id = payload.get("test_session_id") or payload.get("session_id")
+            if not test_session_id:
+                result = {"command": command, "status": "error", "detail": "test_session_id required"}
+            else:
+                session_id = f"review-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "review",
+                    "session_id": session.session_id,
+                    "test_session_id": test_session_id,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_review", result)
+
+        elif command == "ship":
+            review_session_id = payload.get("review_session_id") or payload.get("session_id")
+            if not review_session_id:
+                result = {"command": command, "status": "error", "detail": "review_session_id required"}
+            else:
+                session_id = f"ship-{uuid.uuid4().hex[:8]}"
+                session = self.cto.start_dev_session(session_id)
+                result = {
+                    "command": command,
+                    "status": "ok",
+                    "phase": "ship",
+                    "session_id": session.session_id,
+                    "review_session_id": review_session_id,
+                    "workspace": str(session.workspace),
+                }
+                self._record_action("phase_ship", result)
 
         else:
             result = {"command": command, "status": "error", "detail": f"unknown command: {command}"}

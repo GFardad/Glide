@@ -151,6 +151,114 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "ceo_spec",
+        "description": "Start a spec phase for an objective.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "objective": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["objective"],
+        },
+    },
+    {
+        "name": "ceo_plan",
+        "description": "Start a plan phase from a spec session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "spec_session_id": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["spec_session_id"],
+        },
+    },
+    {
+        "name": "ceo_build",
+        "description": "Start a build phase from a plan session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "plan_session_id": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["plan_session_id"],
+        },
+    },
+    {
+        "name": "ceo_test",
+        "description": "Start a test phase from a build session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "build_session_id": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["build_session_id"],
+        },
+    },
+    {
+        "name": "ceo_review",
+        "description": "Start a review phase from a test session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "test_session_id": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["test_session_id"],
+        },
+    },
+    {
+        "name": "ceo_ship",
+        "description": "Start a ship phase from a review session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "review_session_id": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["review_session_id"],
+        },
+    },
+    {
+        "name": "code_review_graph",
+        "description": "Run code-review-graph commands: build, update, detect-changes, impact, query, flows, status, architecture.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "enum": ["build", "update", "detect-changes", "impact", "query", "flows", "flow", "status", "architecture", "watch", "dead-code", "refactor"]},
+                "args": {"type": "array", "items": {"type": "string"}},
+                "root": {"type": "string"},
+            },
+            "required": ["command"],
+        },
+    },
+    {
+        "name": "glideloop_schedule",
+        "description": "Schedule a recurring GlideLoop objective.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "objective": {"type": "string"},
+                "cron": {"type": "string"},
+                "session_id": {"type": "string"},
+            },
+            "required": ["objective", "cron"],
+        },
+    },
+    {
+        "name": "worker_status",
+        "description": "Return worker status from runtime/state/worker.json.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string"},
+            },
+        },
+    },
 ]
 
 
@@ -474,6 +582,118 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
                 },
                 ensure_ascii=False,
             )
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_spec":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("spec", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_plan":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("plan", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_build":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("build", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_test":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("test", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_review":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("review", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "ceo_ship":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("ship", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "code_review_graph":
+        increment("mcp_tool_calls")
+        try:
+            import shutil
+            import subprocess
+            from pathlib import Path
+
+            command = arguments.get("command", "status")
+            args = arguments.get("args", [])
+            root = Path(arguments.get("root") or os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
+            binary = shutil.which("code-review-graph")
+            if not binary:
+                return json.dumps({"status": "error", "detail": "code-review-graph not found in PATH"}, ensure_ascii=False)
+            cmd = [binary, command, *args]
+            result = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=600)
+            payload = {"status": "ok" if result.returncode == 0 else "error", "stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "glideloop_schedule":
+        increment("mcp_tool_calls")
+        try:
+            from runtime.ceo.ceo import CEO
+
+            ceo = CEO()
+            result = ceo.execute("schedule", arguments)
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
+
+    if name == "worker_status":
+        increment("mcp_tool_calls")
+        try:
+            from pathlib import Path
+            import json as _json
+
+            root = Path(arguments.get("root") or "/home/gfardad/projects/glideloop")
+            status_path = root / "runtime" / "state" / "worker.json"
+            if not status_path.exists():
+                return json.dumps({"status": "error", "detail": "worker.json not found"}, ensure_ascii=False)
+            data = _json.loads(status_path.read_text(encoding="utf-8"))
+            return json.dumps({"status": "ok", "worker": data}, ensure_ascii=False)
         except Exception as exc:
             return json.dumps({"status": "error", "detail": str(exc)}, ensure_ascii=False)
 
