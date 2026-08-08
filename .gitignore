@@ -1,8 +1,10 @@
 __pycache__/
 *.pyc
 runtime/workspace/
-runtime/state/*.sqlite
-runtime/state/*.json
+runtime/state/*
+!runtime/state/.gitkeep
+runtime/meeting_room/agents/
+runtime/meeting_room/minutes/
 *.log
 .env
 .venv/

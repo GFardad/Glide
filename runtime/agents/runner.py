@@ -1,6 +1,7 @@
 """Glideloop resilient agent execution with circuit breaker and backoff."""
 
 from __future__ import annotations
+
 import json
 import os
 import random
@@ -10,15 +11,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from runtime.execution.backends import ExecutionClient
+
 from runtime.glideloop_orchestrator.config import OrchestratorConfig
 from runtime.logging import get_logger, log_event
 from runtime.events import emit
 
-__all__ = ["AgentContext", "AgentRunner", "SubagentContext", "SubagentSpawner", "DeadLetterQueue", "CircuitBreaker"]
+__all__ = ["AgentContext", "AgentRunner", "SubagentContext", "SubagentSpawner", "DeadLetterQueue", "CircuitBreaker", "run_with_execution_backend"]
 
 _CONFIG = OrchestratorConfig()
 _FILE_CONTRACT = ("PERSONALITY.md", "GOAL.md", "NOTES.md", "TODO.md", "REJECTED.md")
 _LOGGER = get_logger("glideloop.runner")
+_EXECUTION_CLIENT = ExecutionClient()
 
 
 @dataclass
@@ -241,3 +245,16 @@ class SubagentSpawner:
             ),
             command,
         )
+
+
+def run_with_execution_backend(context: AgentContext, command: str, *, retry_budget: int = 0) -> subprocess.CompletedProcess[str]:
+    execution_context = ExecutionContext(
+        session_id=context.session_id,
+        agent_id=context.agent_id,
+        cwd=context.cwd,
+        session_dir=context.workspace or context.cwd.parent,
+        metadata={"team_id": context.team_id, "parent_id": context.parent_id},
+    )
+    client = ExecutionClient(retry_budget=retry_budget)
+    result = client.run(execution_context, command)
+    return subprocess.CompletedProcess(args=command, returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
