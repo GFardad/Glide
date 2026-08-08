@@ -149,6 +149,7 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
         "id": f"auto-{int(time.time())}-{task_type}",
         "type": task_type,
         "command": command,
+        "cwd": str(REPO_ROOT),
         "context": {"objective": objective, "source": "ceo-daemon"},
         "created_at": time.time(),
     }
