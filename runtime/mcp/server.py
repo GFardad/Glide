@@ -407,6 +407,7 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
                     "sessions": sessions,
                     "counters": {
                         "sessions_started": counters.sessions_started,
+                        "sessions_started_from_sqlite": sum(1 for _ in conn.execute("SELECT 1 FROM sessions")),
                         "todos_created": counters.todos_created,
                         "todos_merged": counters.todos_merged,
                         "loop_b_hints_injected": counters.loop_b_hints_injected,
@@ -438,9 +439,23 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
 
         objective = arguments.get("objective", "demo")
         exit_code = orchestrator_main(["run", objective])
-        if exit_code == 0:
+        started = False
+        try:
+            from pathlib import Path
+            from runtime.glideloop_orchestrator.state import OrchestratorState
+            db_path = Path(__file__).resolve().parent.parent / "state" / "glideloop_orchestrator.sqlite"
+            state = OrchestratorState(db_path=db_path)
+            conn = state.connect()
+            started = conn.execute(
+                "SELECT COUNT(1) FROM sessions WHERE objective = ?", (objective,)
+            ).fetchone()[0] > 0
+            conn.close()
+            state.close()
+        except Exception:
+            started = False
+        if started:
             increment("sessions_started")
-        return json.dumps({"exit_code": exit_code, "objective": objective}, ensure_ascii=False)
+        return json.dumps({"exit_code": exit_code, "objective": objective, "started": started}, ensure_ascii=False)
 
     if name == "glideloop_stop":
         increment("mcp_tool_calls")
