@@ -404,6 +404,20 @@ def monitor_loop() -> None:
                     "Alert: test_approve_dev failure is blocking dev approval flow",
                 )
 
+            # Parallel watchdog: scan for stale/dead/zombie sessions and spawn recovery tasks
+            watchdog_report = _scan_watchdog_batch()
+            watchdog_items = watchdog_report.get("results", [])
+            watchdog_verdicts = watchdog_report.get("verdicts", {})
+            if watchdog_items:
+                print(f"[ceo-daemon] Watchdog batch: {watchdog_verdicts}")
+                stale_count = watchdog_verdicts.get("stale", 0) + watchdog_verdicts.get("stuck", 0) + watchdog_verdicts.get("dead", 0) + watchdog_verdicts.get("zombie", 0)
+                if stale_count:
+                    inject_improvement_task(
+                        "session_recovery",
+                        f"python3 scripts/watchdog_batch.py",
+                        f"Recover {stale_count} stale/dead/zombie sessions: {watchdog_verdicts}",
+                    )
+
             # Quality gate before push
             if cycle - last_push_cycle >= 3:
                 gate = quality_gate()
