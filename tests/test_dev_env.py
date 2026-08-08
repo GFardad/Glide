@@ -9,7 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from runtime.dev_env import BranchStatus, DevEnvironment, DevSession, create_dev_env, get_dev_env
+from runtime.dev_env import (
+    BranchStatus,
+    DevEnvironment,
+    DevSession,
+    create_dev_env,
+    get_dev_env,
+)
 
 
 @pytest.fixture()
@@ -49,39 +55,93 @@ def test_approve_dev(dev_env):
     for name in ("GOAL.md", "TODO.md", "NOTES.md", "REJECTED.md"):
         (root / name).write_text("ok", encoding="utf-8")
     (root / "tests").mkdir(exist_ok=True)
-    (root / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
-    (root / "tests" / "test_approve.py").write_text("def test_ok(): pass\n", encoding="utf-8")
-    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True, capture_output=True)
+    (root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n", encoding="utf-8"
+    )
+    (root / "tests" / "test_approve.py").write_text(
+        "def test_ok(): pass\n", encoding="utf-8"
+    )
+    subprocess.run(
+        ["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
     (root / "README.md").write_text("base", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "-b", "dev"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "main"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "README.md"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "checkout", "-b", "dev"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "checkout", "main"], cwd=root, check=True, capture_output=True
+    )
     assert dev_env.approve_dev() is True
 
 
 def test_promote_to_release(dev_env):
     dev_env.create_dev_session("dev-1")
     root = dev_env.root
-    subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "cto@example.com"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "CTO"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "cto@example.com"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "CTO"], cwd=root, check=True, capture_output=True
+    )
     (root / "README.md").write_text("hello", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "-b", "dev"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "README.md"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "checkout", "-b", "dev"], cwd=root, check=True, capture_output=True
+    )
     (root / "DEV.md").write_text("world", encoding="utf-8")
     subprocess.run(["git", "add", "DEV.md"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "dev"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "checkout", "main"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "dev"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "checkout", "main"], cwd=root, check=True, capture_output=True
+    )
     (root / "README.md").write_text("base", encoding="utf-8")
-    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "README.md"], cwd=root, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "base"], cwd=root, check=True, capture_output=True
+    )
     remote = root / "remote.git"
-    subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
-    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "--bare", str(remote)], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
     version = dev_env.promote_to_release(tag="release-2026.08.07")
     assert version == "release-2026.08.07"
     assert len(dev_env.get_status()["releases"]) == 1

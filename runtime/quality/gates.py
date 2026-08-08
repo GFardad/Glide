@@ -61,7 +61,9 @@ class ParallelBranchGate:
         if not results:
             log_event(_LOGGER, "quality_gate_rejected", {"reason": "empty_results"})
             return False
-        accepted = all(result.accepted and result.score >= self.threshold for result in results)
+        accepted = all(
+            result.accepted and result.score >= self.threshold for result in results
+        )
         log_event(
             _LOGGER,
             "quality_gate_evaluated",
@@ -69,7 +71,11 @@ class ParallelBranchGate:
                 "threshold": self.threshold,
                 "accepted": accepted,
                 "results": [
-                    {"branch_id": result.branch_id, "score": result.score, "accepted": result.accepted}
+                    {
+                        "branch_id": result.branch_id,
+                        "score": result.score,
+                        "accepted": result.accepted,
+                    }
                     for result in results
                 ],
             },
@@ -81,7 +87,13 @@ class PromotionGate:
     """Quality gate for dev -> main promotion."""
 
     def __init__(self, root: Optional[str | Path] = None) -> None:
-        self.root = Path(root) if root else Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
+        self.root = (
+            Path(root)
+            if root
+            else Path(
+                os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop")
+            )
+        )
 
     def check(self) -> dict[str, Any]:
         checks: dict[str, Any] = {
@@ -118,9 +130,19 @@ class PromotionGate:
                 check=False,
             )
             if result.returncode != 0:
-                subprocess.run(["git", "merge", "--abort"], cwd=str(self.root), check=False, capture_output=True)
+                subprocess.run(
+                    ["git", "merge", "--abort"],
+                    cwd=str(self.root),
+                    check=False,
+                    capture_output=True,
+                )
                 return False
-            subprocess.run(["git", "merge", "--abort"], cwd=str(self.root), check=False, capture_output=True)
+            subprocess.run(
+                ["git", "merge", "--abort"],
+                cwd=str(self.root),
+                check=False,
+                capture_output=True,
+            )
             return True
         except Exception as exc:
             log_event(_LOGGER, "promotion_gate_merge_error", {"error": str(exc)})
