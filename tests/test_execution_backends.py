@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,16 +16,29 @@ from runtime.execution.backends import (
     ExecutionClient,
     ExecutionContext,
     HarnessBackend,
+    HermesBackendError,
+    HermesMCPBackend,
     PersistentKernelSession,
 )
 
 
-def _context(tmp_path: Path, agent_id: str = "agent-1") -> ExecutionContext:
+def _context(
+    tmp_path: Path,
+    agent_id: str = "agent-1",
+    *,
+    metadata: Optional[dict[str, Any]] = None,
+) -> ExecutionContext:
     session_dir = tmp_path / "session"
     cwd = tmp_path / "cwd"
     session_dir.mkdir()
     cwd.mkdir()
-    return ExecutionContext(session_id="s1", agent_id=agent_id, cwd=cwd, session_dir=session_dir)
+    return ExecutionContext(
+        session_id="s1",
+        agent_id=agent_id,
+        cwd=cwd,
+        session_dir=session_dir,
+        metadata=metadata or {},
+    )
 
 
 def test_cli_process_backend_executes_command(tmp_path: Path):
@@ -81,3 +96,104 @@ def test_execution_client_run_and_history(tmp_path: Path):
     history = client.history(context)
     assert len(history) == 1
     assert history[0]["returncode"] == 0
+
+
+def test_hermes_mcp_backend_maps_success_to_backend_result(tmp_path: Path):
+    context = _context(
+        tmp_path,
+        agent_id="agent-1",
+        metadata={"objective": "build auth", "mode": "hybrid", "depth": 3},
+    )
+    fake_response = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [{"type": "text", "text": '{"session_id":"abc","status":"ok"}'}],
+        },
+    })
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = (fake_response, "")
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+
+    with patch("subprocess.Popen", return_value=mock_process) as popen_mock:
+        backend = HermesMCPBackend(call_timeout=5)
+        result = backend.execute(context, "ignored command")
+
+    popen_mock.assert_called_once()
+    assert result.backend == "hermes_mcp"
+    assert result.returncode == 0
+    assert result.stdout == '{"session_id":"abc","status":"ok"}'
+    assert "mcp_request" in result.metadata
+    assert "mcp_response" in result.metadata
+
+
+def test_hermes_mcp_backend_maps_error_to_nonzero_returncode(tmp_path: Path):
+    context = _context(
+        tmp_path,
+        agent_id="agent-2",
+        metadata={"objective": "do work"},
+    )
+    fake_response = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {"code": -32600, "message": "Invalid Request"},
+    })
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = (fake_response, "mcp stderr")
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+
+    with patch("subprocess.Popen", return_value=mock_process):
+        backend = HermesMCPBackend(call_timeout=5)
+        result = backend.execute(context, "ignored")
+
+    assert result.backend == "hermes_mcp"
+    assert result.returncode == 1
+    assert result.stderr == "mcp stderr"
+    assert result.metadata["mcp_response"] == {"code": -32600, "message": "Invalid Request"}
+
+
+def test_hermes_mcp_backend_raises_on_abnormal_server_exit(tmp_path: Path):
+    context = _context(tmp_path)
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = ("", "")
+    mock_process.returncode = 1
+    mock_process.wait.return_value = 1
+
+    with patch("subprocess.Popen", return_value=mock_process):
+        backend = HermesMCPBackend(call_timeout=5)
+        with pytest.raises(HermesBackendError):
+            backend.execute(context, "ignored")
+
+
+def test_hermes_mcp_backend_raises_on_invalid_json_response(tmp_path: Path):
+    context = _context(tmp_path)
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = ("not json", "")
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+
+    with patch("subprocess.Popen", return_value=mock_process):
+        backend = HermesMCPBackend(call_timeout=5)
+        with pytest.raises(HermesBackendError):
+            backend.execute(context, "ignored")
+
+
+def test_hermes_mcp_backend_reaps_server_process(tmp_path: Path):
+    context = _context(tmp_path)
+    mock_process = MagicMock()
+    mock_process.communicate.return_value = (
+        json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": ""}]}}),
+        "",
+    )
+    mock_process.returncode = 0
+    mock_process.wait.return_value = 0
+
+    with patch("subprocess.Popen", return_value=mock_process) as popen_mock:
+        backend = HermesMCPBackend(call_timeout=5)
+        backend.execute(context, "ignored")
+
+    mock_process.kill.assert_called_once()
+    mock_process.wait.assert_called_once()
+
