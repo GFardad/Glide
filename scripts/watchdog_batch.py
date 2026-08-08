@@ -179,11 +179,75 @@ def run_parallel_health_checks(root: str | Path | None = None, max_workers: int 
     return {"status": "stale" if results else "ok", "checked": len(results), "results": results, "verdicts": verdict_counts}
 
 
+def _archive_session(session_id: str, root: Path) -> None:
+    archive_root = root / "runtime" / "workspace" / ".archive"
+    src = root / "runtime" / "workspace" / session_id
+    if not src.exists():
+        return
+    dest = archive_root / session_id
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        import shutil
+        shutil.rmtree(dest)
+    shutil.move(str(src), str(dest))
+
+
+def _restart_session(session_id: str, root: Path) -> dict[str, Any]:
+    from runtime.mcp.server import handle_tool
+    import json as _json
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", f"import json; from runtime.mcp.server import handle_tool; print(handle_tool('glideloop_run', {{'objective': 'Recover session {session_id}'}}))"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if proc.stdout.strip():
+            result = _json.loads(proc.stdout.strip())
+            return {"session_id": session_id, "action": "restart", "result": result}
+    except Exception as exc:
+        return {"session_id": session_id, "action": "restart", "error": str(exc)}
+    return {"session_id": session_id, "action": "restart", "result": {}}
+
+
+def recover_sessions(root: str | Path | None = None) -> dict[str, Any]:
+    """Recover stale/dead/zombie sessions: archive zombies/dead, restart stuck/stale."""
+    root = Path(root) if root else Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
+    report = run_parallel_health_checks(root=root)
+    results = report.get("results", [])
+    if not results:
+        return {"status": "ok", "recovered": 0, "actions": []}
+
+    actions: list[dict[str, Any]] = []
+    for item in results:
+        verdict = item.get("verdict")
+        session_id = item.get("session_id")
+        if verdict == "zombie":
+            _archive_session(session_id, root)
+            actions.append({"session_id": session_id, "action": "archive"})
+        elif verdict == "dead":
+            _archive_session(session_id, root)
+            actions.append({"session_id": session_id, "action": "archive"})
+        elif verdict in ("stuck", "stale"):
+            restart = _restart_session(session_id, root)
+            actions.append(restart)
+
+    return {"status": "recovered", "recovered": len(actions), "actions": actions}
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Entrypoint: print parallel health-check results as JSON."""
-    report = run_parallel_health_checks()
+    """Entrypoint: print parallel health-check results as JSON. Use --auto-recover to fix stale sessions."""
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--auto-recover", action="store_true", help="Automatically recover stale/dead/zombie sessions")
+    args = parser.parse_args(argv)
+    if args.auto_recover:
+        report = recover_sessions()
+    else:
+        report = run_parallel_health_checks()
     print(json.dumps(report, ensure_ascii=False))
-    return 1 if report.get("status") == "stale" else 0
+    return 1 if report.get("status") in ("stale", "recovered") else 0
 
 
 if __name__ == "__main__":
