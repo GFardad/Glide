@@ -152,7 +152,7 @@ class DevEnvironment:
         return True
 
     def promote_to_release(self, tag: str | None = None) -> str | None:
-        if (self.root / "runtime" / "dev_env.py").exists():
+        if self._is_live_glideloop_repo():
             log_event(_LOGGER, "release_promotion_blocked", {"reason": "promote_to_release is not allowed on the live GlideLoop repo"})
             return None
         version = tag or f"release-{_utcnow()[:10]}"
@@ -177,6 +177,13 @@ class DevEnvironment:
         return {
             "dev": dev.to_json() if dev else None,
             "releases": self._state.get("releases", []),
+        }
+
+    def _is_live_glideloop_repo(self) -> bool:
+        resolved = self.root.resolve()
+        return resolved in {
+            Path("/home/gfardad/projects/glideloop").resolve(),
+            Path("/media/Storage/home-gfardad/Projects/GlideLoop").resolve(),
         }
 
 
