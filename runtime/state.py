@@ -11,7 +11,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from runtime.logging import get_logger
+
 __all__ = ["StateStore"]
+
+_LOGGER = get_logger("glideloop.state")
 
 
 @dataclass(frozen=True)
