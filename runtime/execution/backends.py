@@ -4,6 +4,7 @@ This module defines concrete backend adapters for agent execution:
 - ``CliProcessBackend``: OpenCode-style CLI isolation with bounded output
 - ``PersistentKernelSession``: Prime-Agent-style durable session/kernel state
 - ``HarnessBackend``: JCode-style harness wrapper with retry/backoff/session budget
+- ``HermesMCPBackend``: Path-B bridge that calls GlideLoop's MCP server over stdio
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -30,6 +32,10 @@ class BackendResult:
 
 class BackendError(Exception):
     """Raised when a backend cannot execute a command."""
+
+
+class HermesBackendError(BackendError):
+    """Raised when the Hermes MCP backend fails."""
 
 
 class CliProcessBackend:
@@ -137,6 +143,133 @@ class HarnessBackend:
         raise BackendError(f"harness exhausted retries: {last_error}")
 
 
+class HermesMCPBackend:
+    """Path-B bridge: Hermes-native agent execution via GlideLoop MCP.
+
+    This backend replaces subprocess-based agent execution with calls
+    to GlideLoop's own MCP server over stdio. It launches the server
+    as a child process, sends ``glideloop_run`` over JSON-RPC, and
+    returns the parsed result as a ``BackendResult``.
+
+    The server process is always reaped after the call so the harness
+    stays stateless across invocations.
+    """
+
+    def __init__(
+        self,
+        mcp_command: Optional[list[str]] = None,
+        *,
+        launch_timeout: int = 10,
+        call_timeout: int = 120,
+    ) -> None:
+        self.mcp_command = mcp_command or ["/home/gfardad/.local/bin/glideloop-mcp"]
+        self.launch_timeout = max(1, int(launch_timeout))
+        self.call_timeout = max(1, int(call_timeout))
+
+    def execute(self, context: "ExecutionContext", command: str, *, timeout: int = 120) -> BackendResult:
+        started = time.time()
+        effective_timeout = min(max(1, int(timeout)), self.call_timeout)
+        objective = context.metadata.get("objective") or command
+
+        try:
+            server = subprocess.Popen(
+                self.mcp_command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except (FileNotFoundError, OSError) as exc:
+            raise HermesBackendError(f"mcp server launch failed: {exc}") from exc
+
+        try:
+            payload = json.dumps({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "glideloop_run",
+                    "arguments": {
+                        "objective": objective,
+                        "mode": context.metadata.get("mode", "hybrid"),
+                        "depth": int(context.metadata.get("depth", 3)),
+                    },
+                },
+            }) + "\n"
+
+            try:
+                stdout, stderr = server.communicate(input=payload, timeout=effective_timeout)
+            except subprocess.TimeoutExpired:
+                try:
+                    server.send_signal(signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                raise HermesBackendError(f"mcp call timed out after {effective_timeout}s")
+        finally:
+            try:
+                server.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+
+        duration_ms = (time.time() - started) * 1000
+
+        if server.returncode not in (0, None):
+            # Treat abnormal exits as backend failures
+            raise HermesBackendError(
+                f"mcp server exited abnormally rc={server.returncode}: {stderr.strip()}"
+            )
+
+        if not stdout.strip():
+            raise HermesBackendError("mcp server returned empty response")
+
+        try:
+            response = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise HermesBackendError(f"invalid JSON-RPC response: {exc}") from exc
+
+        text_content = ""
+        try:
+            result_payload = response.get("result", {})
+            content_items = result_payload.get("content", [])
+            if content_items:
+                text_content = content_items[0].get("text", "")
+        except (AttributeError, KeyError, TypeError):
+            text_content = ""
+
+        if response.get("error"):
+            return BackendResult(
+                returncode=1,
+                stdout=text_content,
+                stderr=stderr.strip(),
+                duration_ms=duration_ms,
+                backend="hermes_mcp",
+                metadata={
+                    "mcp_request": payload.strip(),
+                    "mcp_response": response.get("error"),
+                    "session_id": context.session_id,
+                    "agent_id": context.agent_id,
+                },
+            )
+
+        return BackendResult(
+            returncode=0,
+            stdout=text_content,
+            stderr=stderr.strip(),
+            duration_ms=duration_ms,
+            backend="hermes_mcp",
+            metadata={
+                "mcp_request": payload.strip(),
+                "mcp_response": response.get("result"),
+                "session_id": context.session_id,
+                "agent_id": context.agent_id,
+            },
+        )
+
+
 @dataclass(frozen=True)
 class ExecutionContext:
     session_id: str
@@ -151,6 +284,7 @@ class ExecutionClient:
 
     - Uses ``PersistentKernelSession`` for durable state.
     - Defaults to ``CliProcessBackend`` wrapped in ``HarnessBackend``.
+    - Supports ``HermesMCPBackend`` as a native Hermes path.
     """
 
     def __init__(
