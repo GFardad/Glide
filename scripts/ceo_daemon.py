@@ -213,23 +213,20 @@ def monitor_loop() -> None:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             print(f"\n[ceo-daemon] === Cycle {cycle} at {now} ===")
 
-            ensure_worker_running()
             status = mcp("glideloop_status")
             orchestrator = status.get("orchestrator", {})
             sessions = status.get("sessions", [])
             counters = status.get("counters", {})
             dev_env = status.get("dev_env", {})
-            # Scan for TODOs/FIXMEs
-            todos = find_todos()
-            if todos:
-                inject_improvement_task(
-                    "todo_cleanup",
-                    f"echo 'Found {len(todos)} TODOs/FIXMEs'; find '{REPO_ROOT}/runtime' -name '*.py' -print0 | xargs -0 grep -n 'TODO\\|FIXME' || true",
-                    f"Address {len(todos)} TODOs/FIXMEs in runtime/",
-                )
+
+            active_sessions = orchestrator.get("active_sessions", 0)
+            dev_status = dev_env.get("dev", {}).get("status", "unknown")
+
+            print(f"[ceo-daemon] sessions_started: {counters.get('sessions_started', 0)}")
+            print(f"[ceo-daemon] active_sessions: {active_sessions}")
+            print(f"[ceo-daemon] dev_status: {dev_status}")
 
             # If dev is idle, try to activate it with real work
-            dev_status = status.get("dev_env", {}).get("dev", {}).get("status", "unknown")
             if dev_status == "idle":
                 inject_improvement_task(
                     "dev_activate",
@@ -238,12 +235,20 @@ def monitor_loop() -> None:
                 )
 
             # Monitor production blockers
-            counters = status.get("counters", {})
-            if counters.get("sessions_started", 0) == 0 and status.get("orchestrator", {}).get("active_sessions", 0) == 0:
+            if counters.get("sessions_started", 0) == 0 and active_sessions == 0:
                 inject_improvement_task(
                     "monitor_sessions",
                     "echo 'Monitoring orchestrator sessions'; glideloop_status || true",
                     "Monitor and investigate why sessions_started remains 0",
+                )
+
+            # Scan for TODOs/FIXMEs
+            todos = find_todos()
+            if todos:
+                inject_improvement_task(
+                    "todo_cleanup",
+                    f"echo 'Found {len(todos)} TODOs/FIXMEs'; find '{REPO_ROOT}/runtime' -name '*.py' -print0 | xargs -0 grep -n 'TODO\\|FIXME' || true",
+                    f"Address {len(todos)} TODOs/FIXMEs in runtime/",
                 )
 
             # Always run quality checks
