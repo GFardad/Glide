@@ -175,7 +175,6 @@ def analyze_and_improve(status: dict) -> None:
     # Scan for TODOs/FIXMEs
     todos = find_todos()
     if todos:
-        todo_text = "\n".join(f"- {t['file']}:{t['line']} {t['text']}" for t in todos[:5])
         inject_improvement_task(
             "todo_cleanup",
             f"echo 'Found {len(todos)} TODOs/FIXMEs'; grep -rn 'TODO\\|FIXME' runtime || true",
@@ -191,12 +190,29 @@ def analyze_and_improve(status: dict) -> None:
             "Activate dev environment with focused test run",
         )
 
+    # Monitor production blockers
+    counters = status.get("counters", {})
+    if counters.get("sessions_started", 0) == 0 and status.get("orchestrator", {}).get("active_sessions", 0) == 0:
+        inject_improvement_task(
+            "monitor_sessions",
+            "echo 'Monitoring orchestrator sessions'; glideloop_status || true",
+            "Monitor and investigate why sessions_started remains 0",
+        )
+
     # Always run quality checks
     inject_improvement_task(
         "quality",
         "pytest -q || echo 'Tests failed'",
         "Run quality gates",
     )
+
+    # Alert on known production blocker
+    if counters.get("mcp_tool_calls", 0) > 0:
+        inject_improvement_task(
+            "alert_approve_dev",
+            "echo 'ALERT: test_approve_dev is failing - blocking production approval flow'; pytest tests/test_dev_env.py::test_approve_dev -v || true",
+            "Alert: test_approve_dev failure is blocking dev approval flow",
+        )
 
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
