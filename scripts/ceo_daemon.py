@@ -258,6 +258,7 @@ def monitor_loop() -> None:
     cycle = 0
     idle_cycles = 0
     last_push_cycle = 0
+    last_backoff_processed = None
 
     try:
         while True:
@@ -378,6 +379,16 @@ def monitor_loop() -> None:
                 idle_cycles += 1
             else:
                 idle_cycles = 0
+
+            # Back off if the worker hasn't advanced for many cycles
+            if (
+                idle_cycles < MAX_IDLE_CYCLES
+                and counters.get("sessions_processed_by_worker") == last_backoff_processed
+            ):
+                idle_cycles += 1
+            else:
+                idle_cycles = idle_cycles if active_sessions == 0 and not sessions else 0
+            last_backoff_processed = counters.get("sessions_processed_by_worker")
 
             # Back off if idle for too long
             if idle_cycles >= MAX_IDLE_CYCLES:
