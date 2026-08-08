@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -92,6 +93,24 @@ def ensure_worker_running() -> None:
         background=True,
     )
 
+def find_todos() -> list[dict]:
+    """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
+    items = []
+    try:
+        for py_file in REPO_ROOT.glob("runtime/**/*.py"):
+            text = py_file.read_text(encoding="utf-8", errors="ignore")
+            for lineno, line in enumerate(text.splitlines(), 1):
+                if "TODO" in line or "FIXME" in line or "HACK" in line:
+                    items.append({
+                        "file": str(py_file.relative_to(REPO_ROOT)),
+                        "line": lineno,
+                        "text": line.strip(),
+                        "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
+                    })
+    except Exception as exc:
+        print(f"[ceo-daemon] TODO scan failed: {exc}")
+    return items[:10]
+
 def drive_planning(status: dict) -> None:
     """Drive real planning/execution through GlideLoop interfaces."""
     orchestrator = status.get("orchestrator", {})
@@ -151,6 +170,34 @@ def quality_gate() -> dict:
         "returncode": proc.returncode,
     }
 
+def analyze_and_improve(status: dict) -> None:
+    """Analyze current state and inject concrete improvement tasks."""
+    # Scan for TODOs/FIXMEs
+    todos = find_todos()
+    if todos:
+        todo_text = "\n".join(f"- {t['file']}:{t['line']} {t['text']}" for t in todos[:5])
+        inject_improvement_task(
+            "todo_cleanup",
+            f"echo 'Found {len(todos)} TODOs/FIXMEs'; grep -rn 'TODO\\|FIXME' runtime || true",
+            f"Address {len(todos)} TODOs/FIXMEs in runtime/",
+        )
+
+    # If dev is idle, try to activate it with real work
+    dev_status = status.get("dev_env", {}).get("dev", {}).get("status", "unknown")
+    if dev_status == "idle":
+        inject_improvement_task(
+            "dev_activate",
+            "echo 'Activating dev CTO with real work'; pytest tests/test_mcp_server.py -q || true",
+            "Activate dev environment with focused test run",
+        )
+
+    # Always run quality checks
+    inject_improvement_task(
+        "quality",
+        "pytest -q || echo 'Tests failed'",
+        "Run quality gates",
+    )
+
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
     if not ensure_single_instance():
@@ -183,19 +230,8 @@ def monitor_loop() -> None:
             # Drive planning/execution
             drive_planning(status)
 
-            # Inject improvement tasks
-            inject_improvement_task(
-                "quality",
-                "pytest -q || echo 'Tests failed'",
-                "Run quality gates"
-            )
-
-            if dev_status == "idle":
-                inject_improvement_task(
-                    "dev_activate",
-                    "echo 'Activating dev CTO'",
-                    "Activate dev environment"
-                )
+            # Analyze and inject concrete improvements
+            analyze_and_improve(status)
 
             # Quality gate before push
             if cycle - last_push_cycle >= 3:
