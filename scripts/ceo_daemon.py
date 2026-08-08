@@ -232,13 +232,23 @@ def _build_directive_objective(status: dict) -> str:
         else:
             latest_event = f"Latest worker event: {latest.get('event')}."
 
+    watchdog_note = ""
+    try:
+        wd = _scan_watchdog_batch()
+        verdicts = wd.get("verdicts", {})
+        stale_total = sum(v for k, v in verdicts.items() if k in ("stale", "stuck", "dead", "zombie"))
+        if stale_total:
+            watchdog_note = f" Watchdog reports {stale_total} sessions needing attention ({verdicts}). Prioritize session_recovery."
+    except Exception:
+        pass
+
     if worker_processed == 0 and not sessions:
-        return f"No production output detected. Start planning/execution pipeline immediately. {latest_event}"
+        return f"No production output detected. Start planning/execution pipeline immediately. {latest_event}{watchdog_note}"
     if active_sessions == 0 and session_count == 0:
-        return f"Drive orchestrator sessions to advance production readiness. {latest_event}"
+        return f"Drive orchestrator sessions to advance production readiness. {latest_event}{watchdog_note}"
     if dev_status == "idle":
-        return f"Activate dev environment and run focused test gate. {latest_event}"
-    return f"Continue current production improvements. {latest_event}"
+        return f"Activate dev environment and run focused test gate. {latest_event}{watchdog_note}"
+    return f"Continue current production improvements. {latest_event}{watchdog_note}"
 
 
 def _scan_watchdog_batch() -> dict:
