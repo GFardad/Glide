@@ -241,6 +241,16 @@ def _build_directive_objective(status: dict) -> str:
     return f"Continue current production improvements. {latest_event}"
 
 
+def _scan_watchdog_batch() -> dict:
+    """Run parallel watchdog batch scan and return report dict."""
+    try:
+        from scripts.watchdog_batch import run_parallel_health_checks
+
+        return run_parallel_health_checks()
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc), "results": []}
+
+
 def ceo_directive(objective: str) -> None:
     payload = {
         "objective": objective,
