@@ -219,46 +219,46 @@ def monitor_loop() -> None:
             sessions = status.get("sessions", [])
             counters = status.get("counters", {})
             dev_env = status.get("dev_env", {})
-
-            active_sessions = orchestrator.get("active_sessions", 0)
-            dev_status = dev_env.get("dev", {}).get("status", "unknown")
-
-            print(f"[ceo-daemon] sessions_started: {counters.get('sessions_started', 0)}")
-            print(f"[ceo-daemon] active_sessions: {active_sessions}")
-            print(f"[ceo-daemon] dev_status: {dev_status}")
-
-            # Drive CEO pipeline
-            if active_sessions == 0 and not sessions:
-                print("[ceo-daemon] No active work. Driving CEO pipeline...")
-                pipeline_results = drive_ceo_pipeline()
-                if any(r.get("status") == "ok" for r in pipeline_results.values()):
-                    print("[ceo-daemon] CEO pipeline advanced")
-            
-            # CEO directive
-            ceo_directive("Continue production improvements and maintain quality gates")
-
-            # Scan for TODOs
+            # Scan for TODOs/FIXMEs
             todos = find_todos()
             if todos:
                 inject_improvement_task(
                     "todo_cleanup",
-                    f"echo 'Found {len(todos)} TODOs/FIXMEs'; find runtime -name '*.py' -print0 | xargs -0 grep -n 'TODO\\|FIXME' || true",
+                    f"echo 'Found {len(todos)} TODOs/FIXMEs'; find '{REPO_ROOT}/runtime' -name '*.py' -print0 | xargs -0 grep -n 'TODO\\|FIXME' || true",
                     f"Address {len(todos)} TODOs/FIXMEs in runtime/",
                 )
 
-            # Quality task
-            inject_improvement_task(
-                "quality",
-                "pytest -q || echo 'Tests failed'",
-                "Run quality gates",
-            )
-
-            # Dev activation
+            # If dev is idle, try to activate it with real work
+            dev_status = status.get("dev_env", {}).get("dev", {}).get("status", "unknown")
             if dev_status == "idle":
                 inject_improvement_task(
                     "dev_activate",
-                    "echo 'Activating dev CTO'",
-                    "Activate dev environment",
+                    "echo 'Activating dev CTO with real work'; pytest tests/test_mcp_server.py -q || true",
+                    "Activate dev environment with focused test run",
+                )
+
+            # Monitor production blockers
+            counters = status.get("counters", {})
+            if counters.get("sessions_started", 0) == 0 and status.get("orchestrator", {}).get("active_sessions", 0) == 0:
+                inject_improvement_task(
+                    "monitor_sessions",
+                    "echo 'Monitoring orchestrator sessions'; glideloop_status || true",
+                    "Monitor and investigate why sessions_started remains 0",
+                )
+
+            # Always run quality checks
+            inject_improvement_task(
+                "quality",
+                f"cd '{REPO_ROOT}' && pytest -q || echo 'Tests failed'",
+                "Run quality gates",
+            )
+
+            # Alert on known production blocker
+            if counters.get("mcp_tool_calls", 0) > 0:
+                inject_improvement_task(
+                    "alert_approve_dev",
+                    "echo 'ALERT: test_approve_dev is failing - blocking production approval flow'; pytest tests/test_dev_env.py::test_approve_dev -v || true",
+                    "Alert: test_approve_dev failure is blocking dev approval flow",
                 )
 
             # Quality gate before push
