@@ -268,6 +268,11 @@ def monitor_loop() -> None:
             else:
                 ceo_directive("Continue current production improvements")
 
+            # Drive real orchestrator sessions on a schedule so sessions_started advances
+            if cycle % 5 == 0:
+                print("[ceo-daemon] Driving orchestrator session...")
+                run([sys.executable, "-m", "runtime.glideloop_orchestrator.main", "run", "Self-improve production readiness via CEO daemon"])
+
             # If dev is idle, try to activate it with real work
             if dev_status == "idle":
                 inject_improvement_task(
