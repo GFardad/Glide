@@ -77,7 +77,7 @@
     "created_at": 1786205100.4259822
   },
   {
-    "id": "auto-1786207196-session_recovery",
+    "id": "auto-1786209244-session_recovery",
     "type": "session_recovery",
     "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/media/Storage/home-gfardad/Projects/GlideLoop",
@@ -85,6 +85,6 @@
       "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev — all >15 min with no log file",
       "source": "ceo-daemon"
     },
-    "created_at": 1786207196.0
+    "created_at": 1786209244.0
   }
 ]
