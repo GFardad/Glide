@@ -15,8 +15,14 @@ def _flagged_scan(tmp_path, agent_id="agent-1"):
     root = tmp_path / "workspace"
     agent_dir = root / "agents" / agent_id
     agent_dir.mkdir(parents=True)
-    (agent_dir / "NOTES.md").write_text("Error: boom\nError: boom\nError: boom\n", encoding="utf-8")
+    (agent_dir / "NOTES.md").write_text(
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n",
+        encoding="utf-8",
+    )
     (agent_dir / "TODO.md").write_text("- [ ] task\n", encoding="utf-8")
+    (agent_dir / "PERSONALITY.md").write_text("role: engineer\n", encoding="utf-8")
     monitor = LoopBMonitor(workspace=str(root))
     return monitor.scan(agent_id)
 

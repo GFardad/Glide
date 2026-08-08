@@ -14,7 +14,12 @@ def test_monitor_flags_repetitive_failure(tmp_path):
     root = tmp_path / "workspace"
     agent_dir = root / "agents" / "agent-1"
     agent_dir.mkdir(parents=True)
-    (agent_dir / "NOTES.md").write_text("Error: boom\nError: boom\nError: boom\n", encoding="utf-8")
+    (agent_dir / "NOTES.md").write_text(
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n",
+        encoding="utf-8",
+    )
     (agent_dir / "TODO.md").write_text("- [ ] task\n", encoding="utf-8")
     result = LoopBMonitor(workspace=str(root)).scan("agent-1")
     assert result.status == "flagged"
@@ -25,8 +30,14 @@ def test_intervention_returns_hint(tmp_path):
     root = tmp_path / "workspace"
     agent_dir = root / "agents" / "agent-1"
     agent_dir.mkdir(parents=True)
-    (agent_dir / "NOTES.md").write_text("Error: boom\nError: boom\nError: boom\n", encoding="utf-8")
+    (agent_dir / "NOTES.md").write_text(
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n"
+        "Error: this is a long repeated failure line with enough length\n",
+        encoding="utf-8",
+    )
     (agent_dir / "TODO.md").write_text("- [ ] task\n", encoding="utf-8")
+    (agent_dir / "PERSONALITY.md").write_text("role: engineer\n", encoding="utf-8")
     monitor = LoopBMonitor(workspace=str(root))
     result = monitor.scan("agent-1")
     hint = LoopBIntervention(workspace=str(root)).maybe_hint("agent-1", scan=result)
