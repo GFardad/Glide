@@ -3,6 +3,7 @@ __pycache__/
 runtime/workspace/
 runtime/state/*
 !runtime/state/.gitkeep
+!runtime/state/tasks.json
 runtime/meeting_room/agents/
 runtime/meeting_room/minutes/
 *.log
