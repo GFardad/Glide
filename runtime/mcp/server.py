@@ -173,6 +173,12 @@ def _list_todos(session_id: str) -> dict[str, Any]:
 def handle_tool(name: str, arguments: dict[str, Any]) -> str:
     from runtime.observability.counters import increment
 
+    if not isinstance(arguments, dict):
+        return json.dumps({"status": "error", "detail": "arguments must be a JSON object"}, ensure_ascii=False)
+    encoded = json.dumps(arguments, ensure_ascii=False)
+    if len(encoded) > 8192:
+        return json.dumps({"status": "error", "detail": f"arguments too large: {len(encoded)} bytes, max 8192"}, ensure_ascii=False)
+
     if name == "glideloop_status":
         increment("mcp_tool_calls")
         try:
