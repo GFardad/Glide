@@ -52,7 +52,6 @@ class Session:
             depth=depth,
             target_agents=target_agents,
             status="running",
-            cwd=str(ensure_session_dirs(cls.__fields__["session_id"].default if hasattr(cls, "__fields__") else "")),
         )
         paths = ensure_session_dirs(session.session_id)
         session.cwd = paths["root"]
