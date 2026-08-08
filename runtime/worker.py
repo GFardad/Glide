@@ -203,6 +203,7 @@ class Worker:
             pass
         self.state.append_log("execution_result", {
             "session_id": session_id,
+            "command": command,
             "returncode": result.returncode,
             "stdout": result.stdout[:500] if result.stdout else "",
             "stderr": result.stderr[:500] if result.stderr else "",
