@@ -198,8 +198,52 @@ def _latest_orchestrator_session_id() -> str | None:
         return None
 
 
+def _latest_worker_event() -> dict | None:
+    log = STATE_DIR / "logs" / "worker.jsonl"
+    if not log.exists():
+        return None
+    try:
+        lines = log.read_text(encoding="utf-8").splitlines()
+        if not lines:
+            return None
+        return json.loads(lines[-1])
+    except Exception:
+        return None
+
+
+def _build_directive_objective(status: dict) -> str:
+    counters = status.get("counters", {})
+    orchestrator = status.get("orchestrator", {})
+    dev_env = status.get("dev_env", {})
+    sessions = status.get("sessions", [])
+    active_sessions = orchestrator.get("active_sessions", 0)
+    session_count = orchestrator.get("session_count", 0)
+    worker_processed = counters.get("sessions_processed_by_worker", 0)
+    dev_status = dev_env.get("dev", {}).get("status", "unknown")
+
+    latest = _latest_worker_event()
+    latest_event = ""
+    if latest:
+        if latest.get("event") == "execution_result":
+            rc = latest.get("returncode")
+            latest_event = "Latest worker run passed." if rc == 0 else "Latest worker run FAILED. Investigate immediately."
+        elif latest.get("event") == "error":
+            latest_event = "Worker error detected."
+        else:
+            latest_event = f"Latest worker event: {latest.get('event')}."
+
+    if worker_processed == 0 and not sessions:
+        return f"No production output detected. Start planning/execution pipeline immediately. {latest_event}"
+    if active_sessions == 0 and session_count == 0:
+        return f"Drive orchestrator sessions to advance production readiness. {latest_event}"
+    if dev_status == "idle":
+        return f"Activate dev environment and run focused test gate. {latest_event}"
+    return f"Continue current production improvements. {latest_event}"
+
+
 def ceo_directive(objective: str) -> None:
     payload = {
+        "objective": objective,
         "source": "ceo-daemon",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
