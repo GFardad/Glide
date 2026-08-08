@@ -152,6 +152,9 @@ class DevEnvironment:
         return True
 
     def promote_to_release(self, tag: str | None = None) -> str | None:
+        if self.root == Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop")).resolve():
+            log_event(_LOGGER, "release_promotion_blocked", {"reason": "promote_to_release is not allowed on the live GlideLoop repo"})
+            return None
         version = tag or f"release-{_utcnow()[:10]}"
         try:
             subprocess.run(["git", "checkout", "main"], cwd=str(self.root), check=True, capture_output=True)
