@@ -52,7 +52,7 @@ def test_check_single_agent_stuck(tmp_path: Path) -> None:
 
 def test_check_single_agent_dead_status(tmp_path: Path) -> None:
     _setup_state(tmp_path, session_status="failed", agent_id="dead")
-    agent_dir = _make_agent_dir(tmp_path, "dead", notes_ts="2026-08-08T09:00:00Z")
+    agent_dir = _make_agent_dir(tmp_path, "dead", notes_ts="2026-08-08T09:00:00Z", add_log=True)
     result = _check_single_agent("dead", tmp_path)
     assert result["verdict"] == "dead"
 

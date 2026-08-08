@@ -152,6 +152,27 @@ TOOLS = [
         },
     },
     {
+        "name": "session_watchdog",
+        "description": "Scan runtime/workspace sessions for stale/dead/zombie agents (>15min idle, >24h old, or failed DB status).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string"},
+                "max_workers": {"type": "integer", "minimum": 1, "maximum": 64, "default": 8},
+            },
+        },
+    },
+    {
+        "name": "session_watchdog_scan",
+        "description": "Lightweight session watchdog scan returning stale agents without parallel checks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string"},
+            },
+        },
+    },
+    {
         "name": "ceo_spec",
         "description": "Start a spec phase for an objective.",
         "inputSchema": {
