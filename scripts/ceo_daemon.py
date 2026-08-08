@@ -3,7 +3,7 @@
 
 Single-instance daemon that:
 - Ensures worker is running
-- Drives real planning/execution via MCP/CEO
+- Drives real planning/execution via MCP/CEO phases
 - Monitors progress and injects improvement goals
 - Commits and pushes to GitHub
 - Backs off when GlideLoop is truly autonomous
@@ -71,7 +71,6 @@ def ensure_single_instance() -> bool:
             pid = int(pid_text)
             try:
                 os.kill(pid, 0)
-                # Another instance is running
                 print(f"[ceo-daemon] Another instance running (pid {pid}), exiting")
                 return False
             except ProcessLookupError:
@@ -93,9 +92,13 @@ def ensure_worker_running() -> None:
             except ProcessLookupError:
                 pass
     print("[ceo-daemon] Starting worker...")
-    run(
+    subprocess.Popen(
         [sys.executable, "-c", "from runtime.worker import Worker; Worker().run()"],
-        background=True,
+        cwd=REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": PYTHONPATH},
+        stdout=open(LOG_FILE, "a", encoding="utf-8"),
+        stderr=subprocess.STDOUT,
+        close_fds=True,
     )
 
 
@@ -107,7 +110,12 @@ def find_todos() -> list[dict]:
             text = py_file.read_text(encoding="utf-8", errors="ignore")
             for lineno, line in enumerate(text.splitlines(), 1):
                 if "TODO" in line or "FIXME" in line or "HACK" in line:
-                    if any(skip in line for skip in ['if "TODO"', "if 'TODO'", 'if "FIXME"', "if 'FIXME'", 'detect_todo', '_detect_todo']):
+                    if any(skip in line for skip in [
+                        'if "TODO"', "if 'TODO'",
+                        'if "FIXME"', "if 'FIXME'",
+                        "detect_todo", "_detect_todo",
+                        'if "FIXME" in text or "TODO" in text',
+                    ]):
                         continue
                     items.append(
                         {
@@ -122,44 +130,45 @@ def find_todos() -> list[dict]:
     return items[:10]
 
 
-def drive_ceo_pipeline(status: dict) -> dict:
-    """Drive the CEO phase pipeline: spec -> plan -> build -> test -> review -> ship."""
-    phase_tools = [
-        ("ceo_spec", {"objective": "Self-improve GlideLoop production readiness"}),
-        ("ceo_plan", {}),
-        ("ceo_build", {}),
-        ("ceo_test", {}),
-        ("ceo_review", {}),
-        ("ceo_ship", {}),
+def drive_pipeline(status: dict) -> dict:
+    """Drive the CEO phase pipeline when there is no active work."""
+    pipeline: dict[str, str | None] = {
+        "spec": None,
+        "plan": None,
+        "build": None,
+        "test": None,
+        "review": None,
+        "ship": None,
+    }
+    steps = [
+        ("ceo_spec", "spec", {"objective": "Self-improve GlideLoop production readiness"}),
+        ("ceo_plan", "plan", {}),
+        ("ceo_build", "build", {}),
+        ("ceo_test", "test", {}),
+        ("ceo_review", "review", {}),
+        ("ceo_ship", "ship", {}),
     ]
 
-    results = {}
-    current_spec_session = None
-
-    for tool_name, args in phase_tools:
-        if tool_name == "ceo_plan" and current_spec_session:
-            args = {"spec_session_id": current_spec_session}
-        elif tool_name == "ceo_build" and results.get("ceo_plan", {}).get("plan_session_id"):
-            args = {"plan_session_id": results["ceo_plan"]["plan_session_id"]}
-        elif tool_name == "ceo_test" and results.get("ceo_build", {}).get("build_session_id"):
-            args = {"build_session_id": results["ceo_build"]["build_session_id"]}
-        elif tool_name == "ceo_review" and results.get("ceo_test", {}).get("test_session_id"):
-            args = {"test_session_id": results["ceo_test"]["test_session_id"]}
-        elif tool_name == "ceo_ship" and results.get("ceo_review", {}).get("review_session_id"):
-            args = {"review_session_id": results["ceo_review"]["review_session_id"]}
+    for tool_name, key, args in steps:
+        if tool_name == "ceo_plan" and pipeline["spec"]:
+            args = {"spec_session_id": pipeline["spec"]}
+        elif tool_name == "ceo_build" and pipeline["plan"]:
+            args = {"plan_session_id": pipeline["plan"]}
+        elif tool_name == "ceo_test" and pipeline["build"]:
+            args = {"build_session_id": pipeline["build"]}
+        elif tool_name == "ceo_review" and pipeline["test"]:
+            args = {"test_session_id": pipeline["test"]}
+        elif tool_name == "ceo_ship" and pipeline["review"]:
+            args = {"review_session_id": pipeline["review"]}
 
         result = mcp(tool_name, args)
-        results[tool_name] = result
-
         if result.get("status") == "ok":
-            print(f"[ceo-daemon] {tool_name} -> {result.get('session_id') or result.get('phase')}")
-            if tool_name == "ceo_spec":
-                current_spec_session = result.get("session_id")
+            pipeline[key] = result.get("session_id")
+            print(f"[ceo-daemon] pipeline {tool_name} -> {pipeline[key]}")
         else:
-            print(f"[ceo-daemon] {tool_name} failed: {result.get('detail')}")
+            print(f"[ceo-daemon] pipeline {tool_name} failed: {result.get('detail')}")
             break
-
-    return results
+    return pipeline
 
 
 def ceo_directive(objective: str) -> None:
@@ -239,6 +248,14 @@ def monitor_loop() -> None:
             print(f"[ceo-daemon] sessions_started: {counters.get('sessions_started', 0)}")
             print(f"[ceo-daemon] active_sessions: {active_sessions}")
             print(f"[ceo-daemon] dev_status: {dev_status}")
+
+            # Drive planning/execution when idle
+            if active_sessions == 0 and not sessions:
+                print("[ceo-daemon] No active work. Driving CEO pipeline...")
+                drive_pipeline(status)
+                ceo_directive("Continue production improvements and maintain quality gates")
+            else:
+                ceo_directive("Continue current production improvements")
 
             # If dev is idle, try to activate it with real work
             if dev_status == "idle":
