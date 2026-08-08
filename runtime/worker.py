@@ -218,8 +218,7 @@ class Worker:
         result = runner.run(context, command)
         try:
             increment("mcp_tool_calls")
-            if result.returncode == 0:
-                increment("sessions_started")
+            increment("sessions_started")
         except Exception:
             pass
         self.state.append_log("execution_result", {
