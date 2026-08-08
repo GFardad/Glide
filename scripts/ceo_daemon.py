@@ -3,7 +3,7 @@
 
 Keeps GlideLoop continuously improving without manual intervention:
 - Monitors status via MCP
-- Injects self-improvement tasks when idle
+- Injects improvement tasks and directives
 - Commits and pushes to GitHub
 - Acts as both CEO and USER
 """
@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
 STATE_DIR = REPO_ROOT / "runtime" / "state"
 PYTHONPATH = str(REPO_ROOT)
-INTERVAL = 30  # seconds between cycles
+INTERVAL = 20  # seconds between cycles
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -60,33 +60,23 @@ def ensure_worker_running() -> None:
         pid_text = pid_file.read_text().strip()
         if pid_text.isdigit():
             pid = int(pid_text)
-            # Check if process exists
             try:
                 os.kill(pid, 0)
-                return  # worker running
+                return
             except ProcessLookupError:
                 pass
-    # Start worker
     print("[ceo-daemon] Starting worker...")
     run(
         [sys.executable, "-c", "from runtime.worker import Worker; Worker().run()"],
         background=True,
     )
 
-def inject_self_improvement_task() -> None:
+def inject_task(command: str, objective: str) -> None:
     task = {
-        "id": f"self-improve-{int(time.time())}",
-        "type": "self_improve",
-        "command": (
-            "echo 'Self-improvement loop: analyzing runtime'; "
-            "find runtime -name '*.py' -print | head -20; "
-            "echo 'Checking git status'; git status --short; "
-            "echo 'Running tests'; pytest -q || true"
-        ),
-        "context": {
-            "objective": "Continuous self-improvement",
-            "source": "ceo-daemon",
-        },
+        "id": f"auto-{int(time.time())}",
+        "type": "auto_improve",
+        "command": command,
+        "context": {"objective": objective, "source": "ceo-daemon"},
         "created_at": time.time(),
     }
     try:
@@ -111,6 +101,23 @@ def ceo_directive(objective: str) -> None:
     else:
         print(f"[ceo-daemon] CEO directive failed: {result}")
 
+def auto_improve_cycle() -> None:
+    # Always inject an improvement task for the worker
+    inject_task(
+        "echo 'Auto-improve cycle'; pytest -q || true; echo 'done'",
+        "Run tests and continue improving"
+    )
+
+    # Drive CEO pipeline
+    ceo_directive("Continue production improvements and quality checks")
+
+    # Run code review graph if available
+    review = mcp("code_review_graph", {"command": "status"})
+    if review.get("status") == "ok":
+        print(f"[ceo-daemon] code review graph: {review.get('summary', 'ok')}")
+    else:
+        print(f"[ceo-daemon] code review graph skipped: {review}")
+
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
     cycle = 0
@@ -119,10 +126,7 @@ def monitor_loop() -> None:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         print(f"\n[ceo-daemon] === Cycle {cycle} at {now} ===")
 
-        # Ensure worker is alive
         ensure_worker_running()
-
-        # Check status
         status = mcp("glideloop_status")
         orchestrator = status.get("orchestrator", {})
         sessions = status.get("sessions", [])
@@ -133,21 +137,15 @@ def monitor_loop() -> None:
         print(f"[ceo-daemon] active_sessions: {orchestrator.get('active_sessions', 0)}")
         print(f"[ceo-daemon] dev_status: {dev_env.get('dev', {}).get('status', 'unknown')}")
 
-        # If no active sessions, inject self-improvement
-        if orchestrator.get("active_sessions", 0) == 0 and not sessions:
-            print("[ceo-daemon] Idle detected. Injecting self-improvement task...")
-            inject_self_improvement_task()
-            ceo_directive("Self-improvement: analyze codebase and generate improvements")
+        auto_improve_cycle()
 
-        # Every 5 cycles, push progress
-        if cycle % 5 == 0:
-            commit_msg = f"chore(daemon): auto-progress cycle {cycle}"
+        if cycle % 3 == 0:
+            commit_msg = f"chore(daemon): auto-improve cycle {cycle}"
             if git_commit_and_push(commit_msg):
                 print(f"[ceo-daemon] Git push succeeded for cycle {cycle}")
             else:
                 print(f"[ceo-daemon] Git push failed for cycle {cycle}")
 
-        # Sleep
         time.sleep(INTERVAL)
 
 if __name__ == "__main__":
