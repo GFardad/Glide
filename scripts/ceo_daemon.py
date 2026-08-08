@@ -122,7 +122,6 @@ def generate_improvements(status: dict) -> list[dict]:
     sessions = status.get("sessions", [])
     teams = status.get("teams", {})
 
-    # If no active work, drive planning/execution
     active = orchestrator.get("active_sessions", 0)
     if active == 0:
         tasks.append({
@@ -131,7 +130,6 @@ def generate_improvements(status: dict) -> list[dict]:
             "objective": "Plan next production improvements",
         })
 
-    # If dev is idle, activate it
     dev_status = status.get("dev_env", {}).get("dev", {}).get("status", "unknown")
     if dev_status == "idle":
         tasks.append({
@@ -140,14 +138,12 @@ def generate_improvements(status: dict) -> list[dict]:
             "objective": "Activate dev environment",
         })
 
-    # Always run quality checks
     tasks.append({
         "type": "quality",
         "command": "pytest -q || echo 'Tests failed'; flake8 runtime || true",
         "objective": "Run quality gates",
     })
 
-    # Code review if available
     review = mcp("code_review_graph", {"command": "status"})
     if review.get("status") == "ok":
         tasks.append({
@@ -157,6 +153,23 @@ def generate_improvements(status: dict) -> list[dict]:
         })
 
     return tasks
+
+def drive_execution(status: dict) -> None:
+    """Drive real planning/execution through GlideLoop interfaces."""
+    orchestrator = status.get("orchestrator", {})
+    active = orchestrator.get("active_sessions", 0)
+    sessions = status.get("sessions", [])
+
+    if active == 0 and not sessions:
+        print("[ceo-daemon] No active work. Starting real orchestrator session...")
+        result = mcp("glideloop_run", {"objective": "Continue production readiness improvements"})
+        if result.get("exit_code") == 0:
+            print("[ceo-daemon] Orchestrator session started")
+        else:
+            print(f"[ceo-daemon] Orchestrator start failed: {result}")
+
+    # CEO pipeline progression
+    ceo_directive("Execute next production improvement phase and validate artifacts")
 
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
@@ -183,8 +196,8 @@ def monitor_loop() -> None:
         for task in improvements:
             inject_improvement_task(task["type"], task["command"], task["objective"])
 
-        # Drive CEO pipeline
-        ceo_directive("Continue production improvements and maintain quality gates")
+        # Drive real execution
+        drive_execution(status)
 
         # Quality gate before push
         if cycle - last_push_cycle >= 3:
