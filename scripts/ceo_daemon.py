@@ -3,7 +3,7 @@
 
 Single-instance daemon that:
 - Ensures worker is running
-- Drives real planning/execution via MCP/CEO phases
+- Drives real planning/execution via MCP/CEO
 - Monitors progress and injects improvement goals
 - Commits and pushes to GitHub
 - Backs off when GlideLoop is truly autonomous
@@ -27,6 +27,7 @@ PYTHONPATH = str(REPO_ROOT)
 INTERVAL = 15  # seconds between cycles
 MAX_IDLE_CYCLES = 10  # after this many idle cycles, back off
 
+
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd,
@@ -36,6 +37,7 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
         text=True,
         **kwargs,
     )
+
 
 def mcp(tool: str, arguments: dict | None = None) -> dict:
     args = arguments or {}
@@ -49,6 +51,7 @@ def mcp(tool: str, arguments: dict | None = None) -> dict:
     except json.JSONDecodeError:
         return {"status": "error", "detail": proc.stdout.strip()}
 
+
 def git_commit_and_push(message: str) -> bool:
     try:
         run(["git", "add", "-A"])
@@ -59,6 +62,7 @@ def git_commit_and_push(message: str) -> bool:
         print(f"[ceo-daemon] git error: {exc}")
         return False
 
+
 def ensure_single_instance() -> bool:
     """Ensure only one daemon instance is running. Returns True if this instance should continue."""
     if PID_FILE.exists():
@@ -67,6 +71,7 @@ def ensure_single_instance() -> bool:
             pid = int(pid_text)
             try:
                 os.kill(pid, 0)
+                # Another instance is running
                 print(f"[ceo-daemon] Another instance running (pid {pid}), exiting")
                 return False
             except ProcessLookupError:
@@ -74,6 +79,7 @@ def ensure_single_instance() -> bool:
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
     PID_FILE.write_text(str(os.getpid()))
     return True
+
 
 def ensure_worker_running() -> None:
     pid_file = STATE_DIR / "worker.pid"
@@ -92,7 +98,31 @@ def ensure_worker_running() -> None:
         background=True,
     )
 
-def drive_ceo_pipeline() -> dict:
+
+def find_todos() -> list[dict]:
+    """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
+    items = []
+    try:
+        for py_file in REPO_ROOT.glob("runtime/**/*.py"):
+            text = py_file.read_text(encoding="utf-8", errors="ignore")
+            for lineno, line in enumerate(text.splitlines(), 1):
+                if "TODO" in line or "FIXME" in line or "HACK" in line:
+                    if any(skip in line for skip in ['if "TODO"', "if 'TODO'", 'if "FIXME"', "if 'FIXME'", 'detect_todo', '_detect_todo']):
+                        continue
+                    items.append(
+                        {
+                            "file": str(py_file.relative_to(REPO_ROOT)),
+                            "line": lineno,
+                            "text": line.strip(),
+                            "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
+                        }
+                    )
+    except Exception as exc:
+        print(f"[ceo-daemon] TODO scan failed: {exc}")
+    return items[:10]
+
+
+def drive_ceo_pipeline(status: dict) -> dict:
     """Drive the CEO phase pipeline: spec -> plan -> build -> test -> review -> ship."""
     phase_tools = [
         ("ceo_spec", {"objective": "Self-improve GlideLoop production readiness"}),
@@ -102,10 +132,10 @@ def drive_ceo_pipeline() -> dict:
         ("ceo_review", {}),
         ("ceo_ship", {}),
     ]
-    
+
     results = {}
     current_spec_session = None
-    
+
     for tool_name, args in phase_tools:
         if tool_name == "ceo_plan" and current_spec_session:
             args = {"spec_session_id": current_spec_session}
@@ -117,10 +147,10 @@ def drive_ceo_pipeline() -> dict:
             args = {"test_session_id": results["ceo_test"]["test_session_id"]}
         elif tool_name == "ceo_ship" and results.get("ceo_review", {}).get("review_session_id"):
             args = {"review_session_id": results["ceo_review"]["review_session_id"]}
-        
+
         result = mcp(tool_name, args)
         results[tool_name] = result
-        
+
         if result.get("status") == "ok":
             print(f"[ceo-daemon] {tool_name} -> {result.get('session_id') or result.get('phase')}")
             if tool_name == "ceo_spec":
@@ -128,8 +158,9 @@ def drive_ceo_pipeline() -> dict:
         else:
             print(f"[ceo-daemon] {tool_name} failed: {result.get('detail')}")
             break
-    
+
     return results
+
 
 def ceo_directive(objective: str) -> None:
     payload = {
@@ -144,6 +175,7 @@ def ceo_directive(objective: str) -> None:
     else:
         print(f"[ceo-daemon] CEO directive failed: {result}")
 
+
 def inject_improvement_task(task_type: str, command: str, objective: str) -> None:
     task = {
         "id": f"auto-{int(time.time())}-{task_type}",
@@ -155,6 +187,7 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
     }
     try:
         from runtime.state import StateStore
+
         store = StateStore(STATE_DIR)
         pending = store.get("worker", "pending") or []
         pending.append(task)
@@ -162,6 +195,7 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
         print(f"[ceo-daemon] Injected task: {task_type} - {objective}")
     except Exception as exc:
         print(f"[ceo-daemon] Failed to inject task: {exc}")
+
 
 def quality_gate() -> dict:
     """Run tests and return pass/fail summary."""
@@ -176,26 +210,6 @@ def quality_gate() -> dict:
         "returncode": proc.returncode,
     }
 
-def find_todos() -> list[dict]:
-    """Scan runtime/ for TODOs and FIXMEs and return actionable items."""
-    items = []
-    try:
-        for py_file in REPO_ROOT.glob("runtime/**/*.py"):
-            text = py_file.read_text(encoding="utf-8", errors="ignore")
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if "TODO" in line or "FIXME" in line or "HACK" in line:
-                    # Skip lines that are just checking for TODOs
-                    if any(skip in line for skip in ['if "TODO"', "if 'TODO'", 'if "FIXME"', "if 'FIXME'", 'detect_todo', '_detect_todo']):
-                        continue
-                    items.append({
-                        "file": str(py_file.relative_to(REPO_ROOT)),
-                        "line": lineno,
-                        "text": line.strip(),
-                        "type": "TODO" if "TODO" in line else "FIXME" if "FIXME" in line else "HACK",
-                    })
-    except Exception as exc:
-        print(f"[ceo-daemon] TODO scan failed: {exc}")
-    return items[:10]
 
 def monitor_loop() -> None:
     print("[ceo-daemon] Starting GlideLoop CEO daemon...")
@@ -205,7 +219,6 @@ def monitor_loop() -> None:
     cycle = 0
     idle_cycles = 0
     last_push_cycle = 0
-    pipeline_phase = 0
 
     try:
         while True:
@@ -213,6 +226,7 @@ def monitor_loop() -> None:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             print(f"\n[ceo-daemon] === Cycle {cycle} at {now} ===")
 
+            ensure_worker_running()
             status = mcp("glideloop_status")
             orchestrator = status.get("orchestrator", {})
             sessions = status.get("sessions", [])
@@ -298,6 +312,7 @@ def monitor_loop() -> None:
     finally:
         if PID_FILE.exists() and PID_FILE.read_text().strip() == str(os.getpid()):
             PID_FILE.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     try:
