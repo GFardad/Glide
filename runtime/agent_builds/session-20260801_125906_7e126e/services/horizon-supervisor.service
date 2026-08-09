@@ -1,0 +1,13 @@
+[Unit]
+Description=HORIZON Superintelligence Loop
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/horizon-supervisor
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

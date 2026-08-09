@@ -1,0 +1,14 @@
+[Unit]
+Description=GlideLoop CEO daemon
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gfardad/projects/glideloop
+Environment=PYTHONPATH=/home/gfardad/projects/glideloop
+ExecStart=/home/gfardad/projects/glideloop/.venv/bin/python3 /home/gfardad/projects/glideloop/scripts/ceo_daemon.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

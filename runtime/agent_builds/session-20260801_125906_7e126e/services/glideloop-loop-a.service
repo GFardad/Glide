@@ -1,0 +1,10 @@
+[Unit]
+Description=Glideloop Loop A weekly observer/validator/promoter
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/gfardad/projects/glideloop
+Environment=PYTHONPATH=/home/gfardad/projects/glideloop
+ExecStart=/usr/bin/env bash /home/gfardad/projects/glideloop/scripts/loop_a_weekly.sh
+StandardOutput=journal
+StandardError=journal

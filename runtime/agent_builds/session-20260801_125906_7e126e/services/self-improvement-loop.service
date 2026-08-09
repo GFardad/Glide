@@ -1,0 +1,19 @@
+[Unit]
+Description=Hermes/OmniForge Self-Improvement Loop (16-thread)
+After=network.target hermes-gateway.service
+Wants=hermes-gateway.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gfardad/Projects/dev-sandbox
+ExecStart=/home/gfardad/Projects/dev-sandbox/scripts/self-improvement-loop.sh
+Restart=always
+RestartSec=5
+Environment=PATH=/home/gfardad/.local/bin:/home/gfardad/.npm-global/bin:/home/gfardad/.omniforge:/home/gfardad/.venv/notebooklm-skill/bin:/usr/bin:/bin
+Environment=HOME=/home/gfardad
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=self-improvement-loop
+
+[Install]
+WantedBy=default.target
