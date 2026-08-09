@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +19,7 @@ def _make_agent_dir(root: Path, agent_id: str, notes_ts: str | None = None, add_
     agent_dir = root / "runtime" / "workspace" / agent_id
     agent_dir.mkdir(parents=True, exist_ok=True)
     (agent_dir / "GOAL.md").write_text("# Goal\n\nprobe\n", encoding="utf-8")
-    ts = notes_ts or "2026-08-08T09:00:00Z"
+    ts = notes_ts or datetime.now(timezone.utc).isoformat()
     (agent_dir / "NOTES.md").write_text(f"## {ts}\nheartbeat\n", encoding="utf-8")
     (agent_dir / "TODO.md").write_text("", encoding="utf-8")
     (agent_dir / "REJECTED.md").write_text("", encoding="utf-8")
@@ -43,9 +44,10 @@ def _setup_state(root: Path, session_status: str | None = None, agent_id: str = 
 
 def test_check_single_agent_stuck(tmp_path: Path) -> None:
     _setup_state(tmp_path, session_status="running", agent_id="stuck")
-    agent_dir = _make_agent_dir(tmp_path, "stuck", notes_ts="2026-08-08T09:00:00Z", add_log=True)
-    stale_ts = time.time() - (15 * 60 + 60)
-    (agent_dir / "logs" / "events.jsonl").write_text(json.dumps({"ts": stale_ts, "event": "heartbeat"}) + "\n", encoding="utf-8")
+    stale_ts = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+    agent_dir = _make_agent_dir(tmp_path, "stuck", notes_ts=stale_ts, add_log=True)
+    log_ts = time.time() - (15 * 60 + 60)
+    (agent_dir / "logs" / "events.jsonl").write_text(json.dumps({"ts": log_ts, "event": "heartbeat"}) + "\n", encoding="utf-8")
     result = _check_single_agent("stuck", tmp_path)
     assert result["verdict"] == "stuck"
 

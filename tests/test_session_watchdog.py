@@ -6,7 +6,7 @@ import json
 import os
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -78,7 +78,8 @@ def test_check_agent_health_stale_no_logs(tmp_path: Path) -> None:
     _setup_state(tmp_path, worker_pid=os.getpid(), session_status="running", agent_id="agent-stale")
     workspace = tmp_path / "runtime" / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
-    agent_dir = _make_agent_dir(workspace, "agent-stale", notes_ts="2026-08-08T09:00:00Z")
+    stale_ts = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+    agent_dir = _make_agent_dir(workspace, "agent-stale", notes_ts=stale_ts)
     result = check_agent_health(agent_dir, tmp_path)
     assert result.verdict == "stale"
 
@@ -87,10 +88,11 @@ def test_check_agent_health_stuck_logs_gap(tmp_path: Path) -> None:
     _setup_state(tmp_path, worker_pid=os.getpid(), session_status="running", agent_id="agent-stuck")
     workspace = tmp_path / "runtime" / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
-    agent_dir = _make_agent_dir(workspace, "agent-stuck", notes_ts="2026-08-08T09:00:00Z")
-    stale_ts = time.time() - (_MAX_WORKER_AGE_SECONDS + 60)
+    stale_ts = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+    agent_dir = _make_agent_dir(workspace, "agent-stuck", notes_ts=stale_ts)
+    log_ts = time.time() - (_MAX_WORKER_AGE_SECONDS + 60)
     (agent_dir / "logs").mkdir(exist_ok=True)
-    (agent_dir / "logs" / "events.jsonl").write_text(json.dumps({"ts": stale_ts, "event": "heartbeat"}) + "\n", encoding="utf-8")
+    (agent_dir / "logs" / "events.jsonl").write_text(json.dumps({"ts": log_ts, "event": "heartbeat"}) + "\n", encoding="utf-8")
     result = check_agent_health(agent_dir, tmp_path)
     assert result.verdict == "stuck"
 
