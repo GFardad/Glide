@@ -93,7 +93,7 @@
     "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev — all >24h with no log file (7 zombies)",
+      "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev \u2014 all >24h with no log file (7 zombies)",
       "source": "ceo-daemon"
     },
     "created_at": 1786312390.0
@@ -104,9 +104,20 @@
     "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev — all >24h with no log file (7 zombies)",
+      "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev \u2014 all >24h with no log file (7 zombies)",
       "source": "ceo-daemon"
     },
     "created_at": 1786314464.0
+  },
+  {
+    "id": "auto-1786316521-wakeup-session_recovery",
+    "type": "session_recovery",
+    "command": "python3 scripts/watchdog_batch.py",
+    "cwd": "/home/gfardad/projects/glideloop",
+    "context": {
+      "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev \u2014 all >24h with no log file (7 zombies)",
+      "source": "ceo-daemon"
+    },
+    "created_at": 1786316521.9899137
   }
 ]
