@@ -1,6 +1,6 @@
 [
   {
-    "id": "auto-1786287846-wakeup-session_recovery",
+    "id": "auto-1754746800-wakeup-session_recovery",
     "type": "session_recovery",
     "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/home/gfardad/projects/glideloop",
@@ -8,6 +8,6 @@
       "objective": "Recover 7 stale sessions: phase-1, phase-2, phase-3, phase-4, phase-5, activate-team-1, activate-current-dev — all >24h with no log file (7 zombies)",
       "source": "ceo-daemon"
     },
-    "created_at": 1786287846.0919023
+    "created_at": 1754746800.0
   }
 ]
