@@ -188,7 +188,6 @@ def _archive_session(session_id: str, root: Path) -> None:
     dest = archive_root / session_id
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
-        import shutil
         shutil.rmtree(dest)
     shutil.move(str(src), str(dest))
 
