@@ -1,0 +1,39 @@
+{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "0.1.0",
+  "description": "Minimal example Glide plugin demonstrating the plugin-api registry/loader surface",
+  "author": "Glide",
+  "kind": "skill",
+  "tags": ["example", "demo"],
+  "sessionDurable": true,
+  "entrypoint": {
+    "module": "./dist/index.js",
+    "exportName": "createExamplePlugin"
+  },
+  "manifest": {
+    "entrypoint": {
+      "module": "./dist/index.js",
+      "exportName": "createExamplePlugin",
+      "stateSchema": {
+        "type": "object",
+        "properties": {
+          "api": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "permissions": {
+      "network": true,
+      "filesystem": false,
+      "env": false,
+      "shell": false
+    },
+    "resourceLimits": {
+      "maxMemoryMb": 128,
+      "maxCpuPercent": 25,
+      "timeoutMs": 5000
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/mcp-server" },
+    { "path": "./packages/headroom" },
+    { "path": "./packages/executor" },
+    { "path": "./packages/tracer" },
+    { "path": "./packages/permissions" },
+    { "path": "./packages/plugin-api" },
+    { "path": "./packages/cli" }
+  ]
+}

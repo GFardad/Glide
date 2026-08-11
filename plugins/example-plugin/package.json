@@ -1,0 +1,20 @@
+{
+  "name": "@glide/example-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal example Glide plugin exercising the plugin-api registry/loader surface",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@glide/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "type": "module"
+}
