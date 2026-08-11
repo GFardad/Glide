@@ -4,10 +4,30 @@ import { join } from "node:path";
 import type { AgentHandle } from "./agent-handle.js";
 import type { AgentMessage } from "./agent-message.js";
 import { AgentStatus } from "./agent-status.js";
-import { globalSessionEmitter } from "./session.js";
+import type { SessionEventEmitter, SessionStore } from "./session.js";
+import { GraphifyClient } from "@glide/tracer";
+import { ensureAgentContract } from "./runtime.js";
+import { createAgentContext } from "./contract.js";
 
 function randomId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateTraceId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `trace-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateSpanId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `span-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isoNow(): string {
@@ -45,17 +65,21 @@ function parseLines(buffer: string): AgentMessage[] {
   return messages;
 }
 
-const agentRegistry = new Map<string, { child: ReturnType<typeof spawn>; killTimeoutMs?: number | undefined }>();
-
 export interface SpawnAgentOptions {
   command: string;
   args?: string[];
   parentId?: string;
+  teamId?: string;
   cwd?: string;
   env?: Record<string, string | undefined>;
   ipcPath?: string;
   killTimeoutMs?: number;
   sessionId?: string;
+  traceId?: string;
+  spanId?: string;
+  sessionEmitter?: SessionEventEmitter | null;
+  graphifyClient?: GraphifyClient | null;
+  timeoutMs?: number;
 }
 
 export interface AgentResult {
@@ -64,101 +88,140 @@ export interface AgentResult {
   error?: Error | undefined;
 }
 
-/**
- * Spawns a child agent process and returns a typed handle.
- *
- * Wire protocol (stdout/stderr):
- *   Each line should be a JSON-encoded AgentMessage.
- *   Any non-JSON output is ignored for protocol purposes.
- */
-export function spawnAgent(options: SpawnAgentOptions): AgentHandle {
-  const id = randomId();
-  const createdAt = isoNow();
-  const messages: AgentMessage[] = [];
-  const handle: AgentHandle = {
-    id,
-    parentId: options.parentId,
-    sessionId: options.sessionId,
-    status: AgentStatus.Pending,
-    createdAt,
-    ipcPath: options.ipcPath,
-    messages,
-  };
+export interface AgentExecutionContext {
+  agent: AgentHandle;
+  command: string;
+  args: string[];
+  cwd: string;
+  env: Record<string, string | undefined>;
+}
 
-  const child = spawn(options.command, options.args ?? [], {
-    cwd: options.cwd,
-    env: { ...process.env, ...(options.env ?? {}) },
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
+export async function groundWithGraphify(
+  client: GraphifyClient | null | undefined,
+  context: AgentExecutionContext
+): Promise<void> {
+  if (!client) return;
 
-  let stdoutBuffer = "";
-  let stderrBuffer = "";
+  try {
+    const query = `${context.agent.sessionId ?? ""} ${context.command} ${(context.args ?? []).join(" ")}`.trim();
+    if (query.length === 0) return;
 
-  child.stdout.on("data", (chunk: Buffer) => {
-    stdoutBuffer += chunk.toString("utf-8");
-    const parsed = parseLines(stdoutBuffer);
-    const newMessages = parsed.slice(messages.length);
-    if (newMessages.length > 0) {
-      messages.push(...newMessages);
-    }
-  });
+    const { nodes } = client.query(query, 2);
+    if (nodes.length === 0) return;
 
-  child.stderr.on("data", (chunk: Buffer) => {
-    stderrBuffer += chunk.toString("utf-8");
-    const parsed = parseLines(stderrBuffer);
-    const newMessages = parsed.slice(messages.length);
-    if (newMessages.length > 0) {
-      messages.push(...newMessages);
-    }
-  });
+    const contextLines = nodes
+      .slice(0, 10)
+      .map((node) => `- ${node.label} (${node.source_file ?? "unknown"}): ${node.community_name ?? ""}`)
+      .join("\n");
 
-  child.on("error", (err) => {
-    handle.status = AgentStatus.Failed;
-    handle.completedAt = isoNow();
-    handle.returnCode = child.exitCode ?? null;
-    messages.push({
-      role: "error",
-      content: err.message,
+    context.agent.messages.push({
+      role: "system",
+      content: `Graphify grounding:\n${contextLines}`,
       timestamp: isoNow(),
-      metadata: { kind: "spawn-error" },
+      metadata: { kind: "graphify-grounding", nodeCount: String(nodes.length) },
     });
-    try {
-      globalSessionEmitter.fail(handle);
-    } catch {
-      // session logging is best-effort
-    }
-  });
+  } catch {
+    // Graphify grounding is best-effort
+  }
+}
 
-  child.on("close", (code) => {
-    const remainingStdout = parseLines(stdoutBuffer).slice(messages.length);
-    const remainingStderr = parseLines(stderrBuffer).slice(messages.length);
-    messages.push(...remainingStdout, ...remainingStderr);
+export interface ExecutorRuntimeOptions {
+  sessionEmitter?: SessionEventEmitter | null;
+}
 
-    handle.returnCode = code ?? null;
-    handle.completedAt = isoNow();
+export class ExecutorRuntime {
+  private readonly agentRegistry = new Map<string, { child: ReturnType<typeof spawn>; killTimeoutMs?: number | undefined }>();
+  private readonly sessionEmitter: SessionEventEmitter | null;
 
-    if (child.killed) {
-      handle.status = AgentStatus.Cancelled;
-      try {
-        globalSessionEmitter.cancel(handle);
-      } catch {
-        // session logging is best-effort
+  constructor(options: ExecutorRuntimeOptions = {}) {
+    this.sessionEmitter = options.sessionEmitter ?? null;
+  }
+
+  spawnAgent(options: SpawnAgentOptions): AgentHandle {
+    const id = randomId();
+    const traceId = options.traceId ?? generateTraceId();
+    const spanId = options.spanId ?? generateSpanId();
+    const createdAt = isoNow();
+    const workspace = options.cwd ?? process.cwd();
+    const messages: AgentMessage[] = [];
+    const handle: AgentHandle = {
+      id,
+      parentId: options.parentId,
+      sessionId: options.sessionId,
+      status: AgentStatus.Pending,
+      createdAt,
+      ipcPath: options.ipcPath,
+      messages,
+      traceId,
+      spanId,
+    };
+
+    const context: AgentExecutionContext = {
+      agent: handle,
+      command: options.command,
+      args: options.args ?? [],
+      cwd: workspace,
+      env: options.env ?? {},
+    };
+
+    const contractContext = createAgentContext({
+      agentId: id,
+      sessionId: options.sessionId ?? id,
+      cwd: workspace,
+      ...(options.teamId !== undefined && { teamId: options.teamId }),
+      ...(options.parentId !== undefined && { parentId: options.parentId }),
+    });
+    ensureAgentContract(workspace, contractContext);
+
+    void groundWithGraphify(options.graphifyClient ?? null, context);
+
+    const child = spawn(options.command, options.args ?? [], {
+      cwd: options.cwd,
+      env: { ...process.env, ...(options.env ?? {}) },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutBuffer += chunk.toString("utf-8");
+      const parsed = parseLines(stdoutBuffer);
+      const newMessages = parsed.slice(messages.length);
+      if (newMessages.length > 0) {
+        messages.push(...newMessages);
       }
-    } else if (code === 0) {
-      handle.status = AgentStatus.Completed;
-      try {
-        globalSessionEmitter.complete(handle);
-      } catch {
-        // session logging is best-effort
-      }
-    } else {
+    });
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderrBuffer += chunk.toString("utf-8");
+    });
+
+    child.on("error", (err) => {
       handle.status = AgentStatus.Failed;
+      handle.completedAt = isoNow();
+      handle.returnCode = child.exitCode ?? null;
+      messages.push({
+        role: "error",
+        content: err.message,
+        timestamp: isoNow(),
+        metadata: { kind: "spawn-error" },
+      });
       try {
-        globalSessionEmitter.fail(handle);
+        this.sessionEmitter?.fail(handle);
       } catch {
         // session logging is best-effort
       }
+    });
+
+    child.on("close", (code) => {
+      const remainingStdout = parseLines(stdoutBuffer).slice(messages.length);
+      messages.push(...remainingStdout);
+
+      handle.returnCode = code ?? null;
+      handle.completedAt = isoNow();
+
       if (stderrBuffer.trim().length > 0) {
         const last = messages[messages.length - 1];
         if (!last || last.role !== "error") {
@@ -170,67 +233,110 @@ export function spawnAgent(options: SpawnAgentOptions): AgentHandle {
           });
         }
       }
-    }
-    agentRegistry.delete(id);
-  });
 
-  child.on("spawn", () => {
-    handle.status = AgentStatus.Running;
-    try {
-      globalSessionEmitter.create(handle);
-    } catch {
-      // session logging is best-effort
-    }
-  });
+      if (child.killed) {
+        handle.status = AgentStatus.Cancelled;
+        try {
+          this.sessionEmitter?.cancel(handle);
+        } catch {
+          // session logging is best-effort
+        }
+      } else if (code === 0) {
+        handle.status = AgentStatus.Completed;
+        try {
+          this.sessionEmitter?.complete(handle);
+        } catch {
+          // session logging is best-effort
+        }
+      } else {
+        handle.status = AgentStatus.Failed;
+        try {
+          this.sessionEmitter?.fail(handle);
+        } catch {
+          // session logging is best-effort
+        }
+      }
+      this.agentRegistry.delete(id);
+      if (handle.ipcPath) {
+        try {
+          removeIpcPath(handle.ipcPath);
+        } catch {
+          // best-effort cleanup
+        }
+      }
+    });
 
-  agentRegistry.set(id, { child, killTimeoutMs: options.killTimeoutMs });
-  return handle;
-}
+    child.on("spawn", () => {
+      handle.status = AgentStatus.Running;
+      try {
+        this.sessionEmitter?.create(handle);
+      } catch {
+        // session logging is best-effort
+      }
+    });
 
-export function cancelAgent(handle: AgentHandle): void {
-  const record = agentRegistry.get(handle.id);
-  const child = record?.child;
-  if (!child || handle.status !== AgentStatus.Running) {
-    return;
+    this.agentRegistry.set(id, { child, killTimeoutMs: options.killTimeoutMs });
+    return handle;
   }
 
-  child.kill("SIGTERM");
-
-  setTimeout(() => {
-    try {
-      child.kill("SIGKILL");
-    } catch {
-      // already exited
+  cancelAgent(handle: AgentHandle): void {
+    const record = this.agentRegistry.get(handle.id);
+    const child = record?.child;
+    if (!child || handle.status !== AgentStatus.Running) {
+      return;
     }
-  }, record?.killTimeoutMs ?? 5000);
-}
 
-export function awaitAgent(handle: AgentHandle): Promise<AgentResult> {
-  return new Promise((resolve) => {
-    if (handle.status !== AgentStatus.Pending && handle.status !== AgentStatus.Running) {
-      return resolve({
-        handle,
-        exitCode: handle.returnCode ?? null,
-        error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
-      });
-    }
-    const check = () => {
-      if (
-        handle.status === AgentStatus.Completed ||
-        handle.status === AgentStatus.Failed ||
-        handle.status === AgentStatus.Cancelled
-      ) {
-        resolve({
+    child.kill("SIGTERM");
+
+    setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // already exited
+      }
+    }, record?.killTimeoutMs ?? 5000);
+  }
+
+  async awaitAgent(handle: AgentHandle, timeoutMs?: number): Promise<AgentResult> {
+    return new Promise((resolve) => {
+      if (handle.status !== AgentStatus.Pending && handle.status !== AgentStatus.Running) {
+        return resolve({
           handle,
           exitCode: handle.returnCode ?? null,
           error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
         });
-      } else {
-        setTimeout(check, 50);
       }
-    };
-    check();
-  });
+
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      if (typeof timeoutMs === "number" && timeoutMs > 0) {
+        timeoutId = setTimeout(() => {
+          resolve({
+            handle,
+            exitCode: handle.returnCode ?? null,
+            error: new Error(`Agent await timed out after ${timeoutMs}ms`),
+          });
+        }, timeoutMs);
+      }
+
+      const check = () => {
+        if (
+          handle.status === AgentStatus.Completed ||
+          handle.status === AgentStatus.Failed ||
+          handle.status === AgentStatus.Cancelled
+        ) {
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve({
+            handle,
+            exitCode: handle.returnCode ?? null,
+            error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
+          });
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
+  }
 }
 
 export function createIpcPath(baseDir: string, handleId: string): string {
@@ -249,3 +355,68 @@ export function removeIpcPath(ipcPath: string): void {
   }
 }
 
+export async function resumeAgent(
+  handleId: string,
+  options: {
+    sessionStore: SessionStore;
+    sessionEmitter: SessionEventEmitter;
+    graphifyClient?: GraphifyClient | null;
+  }
+): Promise<AgentHandle | null> {
+  const events = await options.sessionStore.readForHandle(handleId);
+  if (events.length === 0) return null;
+
+  const lastEvent = events[events.length - 1]!;
+  if (lastEvent.type === "session_completed" || lastEvent.type === "session_failed") {
+    return null;
+  }
+
+  const messages: AgentMessage[] = [];
+  const handle: AgentHandle = {
+    id: handleId,
+    parentId: lastEvent.payload?.parentId as string | undefined,
+    sessionId: lastEvent.sessionId,
+    status: AgentStatus.Pending,
+    createdAt: lastEvent.timestamp,
+    traceId: lastEvent.traceId,
+    spanId: lastEvent.spanId,
+    messages,
+  };
+
+  return handle;
+}
+
+export async function propagateParentSummary(
+  handle: AgentHandle,
+  options: {
+    sessionEmitter: SessionEventEmitter;
+    parentId?: string | undefined;
+  }
+): Promise<void> {
+  const summary = {
+    agentId: handle.id,
+    status: handle.status,
+    messageCount: handle.messages.length,
+  };
+
+  await options.sessionEmitter.update(handle, {
+    summary,
+    propagatedTo: options.parentId ?? null,
+  });
+}
+
+
+
+const defaultExecutor = new ExecutorRuntime();
+
+export function spawnAgent(options: SpawnAgentOptions): AgentHandle {
+  return defaultExecutor.spawnAgent(options);
+}
+
+export function cancelAgent(handle: AgentHandle): void {
+  defaultExecutor.cancelAgent(handle);
+}
+
+export async function awaitAgent(handle: AgentHandle, timeoutMs?: number): Promise<AgentResult> {
+  return defaultExecutor.awaitAgent(handle, timeoutMs);
+}
