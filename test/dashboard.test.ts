@@ -50,4 +50,37 @@ describe("dashboard surface", () => {
     const html = renderHtml(view);
     expect(html).toContain("No campaigns found");
   });
+
+  it("escapes script-breaking payloads in campaign goals (XSS regression)", async () => {
+    const root = join(tmpRoot, "xss");
+    createCampaign(root, "</script><script>alert(1)</script>", [], []);
+    const view = generateDashboard([root]);
+    const html = renderHtml(view);
+
+    // The raw HTML/script sequence must never appear unescaped.
+    expect(html).not.toContain("</script><script>alert(1)");
+    // The safe `<` → \u003c serialization must carry the payload inertly.
+    expect(html).toContain("\\u003c/script\\u003e\\u003cscript\\u003e");
+  });
+
+  it("escapes HTML entities and ampersands in campaign goals (XSS regression)", async () => {
+    const root = join(tmpRoot, "xss-amp");
+    createCampaign(root, "&\"'", [], []);
+    const view = generateDashboard([root]);
+    const html = renderHtml(view);
+
+    expect(html).not.toContain(">alert");
+    expect(html).toContain("\\u0026");
+  });
+
+  it("serializes generatedAt inside the escaped script payload, no raw interpolation", async () => {
+    const root = join(tmpRoot, "c-date");
+    createCampaign(root, "Dates", [], []);
+    const view = generateDashboard([root]);
+    const html = renderHtml(view);
+
+    expect(html).toContain("window.__GLIDE_DASHBOARD__");
+    // generatedAt must ride inside the escaped JSON, not as a separate raw string literal.
+    expect(html).not.toContain('new Date("');
+  });
 });

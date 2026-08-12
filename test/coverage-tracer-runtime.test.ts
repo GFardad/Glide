@@ -40,29 +40,29 @@ describe("tracer runtime (src coverage)", () => {
     writeFileSync(join(dir, "TODO.md"), opts.todos ?? "");
   }
 
-  it("throws when the agent directory does not exist", () => {
-    expect(() =>
+  it("throws when the agent directory does not exist", async () => {
+    await expect(
       traceAgent({ workspace: join(tmpRoot, "ws-empty"), agentId: "ghost" })
-    ).toThrow("Agent not found: ghost");
+    ).rejects.toThrow("Agent not found: ghost");
   });
 
-  it("throws when GOAL.md is missing", () => {
+  it("throws when GOAL.md is missing", async () => {
     const ws = join(tmpRoot, "ws-nogoal");
     const dir = join(ws, "agents", "x");
     mkdirSync(dir, { recursive: true });
-    expect(() => traceAgent({ workspace: ws, agentId: "x" })).toThrow(
+    await expect(traceAgent({ workspace: ws, agentId: "x" })).rejects.toThrow(
       "Agent not found: x"
     );
   });
 
-  it("returns empty notes/todos when files are absent and parent defaults to none", () => {
+  it("returns empty notes/todos when files are absent and parent defaults to none", async () => {
     const ws = join(tmpRoot, "ws-sparse");
     const dir = join(ws, "agents", "a");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "GOAL.md"), "# Goal\n\nSparse\n");
     writeFileSync(join(dir, "PERSONALITY.md"), "# Personality\n");
 
-    const trace = traceAgent({ workspace: ws, agentId: "a", depth: 1 });
+    const trace = await traceAgent({ workspace: ws, agentId: "a", depth: 1 });
     expect(trace.goal).toContain("Sparse");
     expect(trace.notes).toEqual([]);
     expect(trace.todos).toEqual([]);
@@ -71,17 +71,17 @@ describe("tracer runtime (src coverage)", () => {
     expect(trace.depth).toBe(1);
   });
 
-  it("reads parent from PERSONALITY.md and skips child scan at depth 1", () => {
+  it("reads parent from PERSONALITY.md and skips child scan at depth 1", async () => {
     const ws = join(tmpRoot, "ws-parent");
     writeAgent(ws, "child", { personality: "# Personality\n\nParent: root\n" });
     writeAgent(ws, "root");
 
-    const trace = traceAgent({ workspace: ws, agentId: "child", depth: 1 });
+    const trace = await traceAgent({ workspace: ws, agentId: "child", depth: 1 });
     expect(trace.parentId).toBe("root");
     expect(trace.children).toEqual([]);
   });
 
-  it("finds children that point back to the agent", () => {
+  it("finds children that point back to the agent", async () => {
     const ws = join(tmpRoot, "ws-children");
     writeAgent(ws, "root");
     writeAgent(ws, "kid1", { personality: "# Personality\n\nParent: root\n" });
@@ -90,18 +90,18 @@ describe("tracer runtime (src coverage)", () => {
       personality: "# Personality\n\nParent: other\n",
     });
 
-    const trace = traceAgent({ workspace: ws, agentId: "root", depth: 3 });
+    const trace = await traceAgent({ workspace: ws, agentId: "root", depth: 3 });
     expect(trace.children.sort()).toEqual(["kid1", "kid2"]);
   });
 
-  it("indepth renders '(none)' placeholders when notes/todos are missing", () => {
+  it("indepth renders '(none)' placeholders when notes/todos are missing", async () => {
     const ws = join(tmpRoot, "ws-indepth-sparse");
     const dir = join(ws, "agents", "n");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "GOAL.md"), "# Goal\n\nBare\n");
     writeFileSync(join(dir, "PERSONALITY.md"), "# Personality\n");
 
-    const md = indepthAgent({ workspace: ws, agentId: "n" });
+    const md = await indepthAgent({ workspace: ws, agentId: "n" });
     expect(md).toContain("# Agent: n");
     expect(md).toContain("## Goal");
     expect(md).toContain("Bare");
@@ -113,20 +113,20 @@ describe("tracer runtime (src coverage)", () => {
     expect(md).toContain("## Todos");
   });
 
-  it("indepth lists children when present", () => {
+  it("indepth lists children when present", async () => {
     const ws = join(tmpRoot, "ws-indepth-children");
     writeAgent(ws, "root");
     writeAgent(ws, "kid", { personality: "# Personality\n\nParent: root\n" });
 
-    const md = indepthAgent({ workspace: ws, agentId: "root" });
+    const md = await indepthAgent({ workspace: ws, agentId: "root" });
     expect(md).toContain("## Children");
     expect(md).toContain("kid");
   });
 
-  it("trims and filters blank lines from notes", () => {
+  it("trims and filters blank lines from notes", async () => {
     const ws = join(tmpRoot, "ws-notes");
     writeAgent(ws, "a", { notes: "\n  note one  \n\nnote two\n\n" });
-    const trace = traceAgent({ workspace: ws, agentId: "a" });
+    const trace = await traceAgent({ workspace: ws, agentId: "a" });
     expect(trace.notes).toEqual(["note one", "note two"]);
   });
 });

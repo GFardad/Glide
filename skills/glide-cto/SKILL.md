@@ -56,7 +56,7 @@ Before calling `glide_headroom`, ensure the Glide MCP server is wired into Herme
 
 1. Build the stdio server from the Glide repo root:
    ```bash
-   cd /media/Storage/home-gfardad/Projects/Glide
+   cd /home/gfardad/Projects/Glide
    pnpm build
    ```
 2. Add the `mcpServers.glide` block to `~/.hermes/config.yaml`:
@@ -65,14 +65,14 @@ Before calling `glide_headroom`, ensure the Glide MCP server is wired into Herme
      glide:
        command: node
        args:
-         - /media/Storage/home-gfardad/Projects/Glide/packages/mcp-server/dist/index.js
+         - /home/gfardad/Projects/Glide/packages/mcp-server/dist/index.js
        env: {}
        enabled: true
        connect_timeout: 120
    ```
 3. Verify:
    ```bash
-   cd /media/Storage/home-gfardad/Projects/Glide
+   cd /home/gfardad/Projects/Glide
    node scripts/verify-hermes-config.cjs
    ```
 4. Restart Hermes or run `/reload-mcp` so the client discovers `glide_*` tools.
@@ -81,7 +81,7 @@ Before calling `glide_headroom`, ensure the Glide MCP server is wired into Herme
 
 - **Unknown tool `glide_headroom`:** restart Hermes or run `/reset`; then confirm `mcpServers.glide.enabled: true`.
 - **Command not found:** ensure `packages/mcp-server/dist/index.js` exists; rebuild if missing.
-- **Hermes config elsewhere:** if `HERMES_HOME` is set, edit `$HERMES_HOME/config.yaml` and update the `scripts/verify-hermes-config.js` path if needed.
+- **Hermes config elsewhere:** if `HERMES_HOME` is set, edit `$HERMES_HOME/config.yaml` and update the `scripts/verify-hermes-config.cjs` path if needed.
 - **Connect timeout:** increase `connect_timeout` or run Hermes with a longer startup window.
 - **stdio handshake errors:** run the server directly (`node packages/mcp-server/dist/index.js`) and inspect stderr for build/runtime issues.
 

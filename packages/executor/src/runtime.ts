@@ -6,7 +6,7 @@ import {
   readdirSync,
   rmSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 export interface AgentContext {
   sessionId: string;
@@ -14,7 +14,7 @@ export interface AgentContext {
   cwd: string;
   teamId?: string;
   parentId?: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ExecutionOptions {
@@ -39,11 +39,31 @@ export interface AgentFileContract {
   rejected: string[];
 }
 
+function validateWorkspace(workspace: string): string {
+  const resolved = resolve(workspace);
+  if (!existsSync(resolved)) {
+    throw new Error(`Workspace does not exist: ${resolved}`);
+  }
+  return resolved;
+}
+
+function validateAgentDir(workspace: string, agentId: string): string {
+  const resolvedWorkspace = validateWorkspace(workspace);
+  const agentDir = join(resolvedWorkspace, "agents", agentId);
+  const resolvedAgentDir = resolve(agentDir);
+
+  if (!resolvedAgentDir.startsWith(resolvedWorkspace + sep) && resolvedAgentDir !== resolvedWorkspace) {
+    throw new Error(`Agent directory escapes workspace: ${agentId}`);
+  }
+
+  return resolvedAgentDir;
+}
+
 export function ensureAgentContract(
   workspace: string,
   agent: AgentContext
 ): void {
-  const agentDir = join(workspace, "agents", agent.agentId);
+  const agentDir = validateAgentDir(workspace, agent.agentId);
   mkdirSync(agentDir, { recursive: true });
 
   const goalPath = join(agentDir, "GOAL.md");
@@ -71,7 +91,7 @@ export function loadAgentContract(
   workspace: string,
   agentId: string
 ): AgentFileContract {
-  const agentDir = join(workspace, "agents", agentId);
+  const agentDir = validateAgentDir(workspace, agentId);
   const read = (name: string, fallback: string[] = []) => {
     const path = join(agentDir, name);
     if (!existsSync(path)) return fallback;
@@ -94,7 +114,8 @@ export function appendNote(
   agentId: string,
   message: string
 ): void {
-  const path = join(workspace, "agents", agentId, "NOTES.md");
+  const agentDir = validateAgentDir(workspace, agentId);
+  const path = join(agentDir, "NOTES.md");
   const timestamp = new Date().toISOString();
   writeFileSync(
     path,
@@ -107,7 +128,8 @@ export function markTodoDone(
   agentId: string,
   todo: string
 ): void {
-  const path = join(workspace, "agents", agentId, "TODO.md");
+  const agentDir = validateAgentDir(workspace, agentId);
+  const path = join(agentDir, "TODO.md");
   const current = readFileSync(path, "utf8");
   const normalized = `- [ ] ${todo}`;
   const done = `- [x] ${todo}`;
@@ -127,7 +149,8 @@ export function recordRejection(
   reason: string,
   rejectedBy = "runtime"
 ): void {
-  const path = join(workspace, "agents", agentId, "REJECTED.md");
+  const agentDir = validateAgentDir(workspace, agentId);
+  const path = join(agentDir, "REJECTED.md");
   const timestamp = new Date().toISOString();
   writeFileSync(
     path,
@@ -136,7 +159,8 @@ export function recordRejection(
 }
 
 export function listAgents(workspace: string): string[] {
-  const agentsDir = join(workspace, "agents");
+  const resolvedWorkspace = validateWorkspace(workspace);
+  const agentsDir = join(resolvedWorkspace, "agents");
   if (!existsSync(agentsDir)) return [];
   return readdirSync(agentsDir).filter((entry) => {
     const full = join(agentsDir, entry);
@@ -148,6 +172,6 @@ export function cleanupAgentWorkspace(
   workspace: string,
   agentId: string
 ): void {
-  const agentDir = join(workspace, "agents", agentId);
+  const agentDir = validateAgentDir(workspace, agentId);
   if (existsSync(agentDir)) rmSync(agentDir, { recursive: true, force: true });
 }

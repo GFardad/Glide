@@ -77,15 +77,16 @@ function loadYaml(raw) {
       }
       if (!Array.isArray(arr)) {
         const newArr = [];
-        const parentObj = stack[stack.length - 1].node;
-        if (stack[stack.length - 1].key) {
-          parentObj[stack[stack.length - 1].key] = newArr;
+        const current = stack[stack.length - 1];
+        const parentObj = stack.length >= 2 ? stack[stack.length - 2].node : current.node;
+        if (current.key) {
+          parentObj[current.key] = newArr;
         } else {
           const keys = Object.keys(parentObj);
           const last = keys[keys.length - 1];
           parentObj[last] = newArr;
         }
-        stack[stack.length - 1].node = parentObj;
+        current.node = newArr;
         arr = newArr;
         stack.push({ node: newArr, indent, key: null });
         arr.push(parseScalar(value));
@@ -153,9 +154,14 @@ function main() {
   ok("config.yaml structure looks good");
 
   const command = glide.command.trim();
-  const resolvedCommand = path.isAbsolute(command)
-    ? command
-    : path.resolve(path.dirname(CONFIG_PATH), command);
+  let resolvedCommand;
+  if (command === "node" && Array.isArray(glide.args) && glide.args.length > 0 && typeof glide.args[0] === "string") {
+    resolvedCommand = path.resolve(glide.args[0]);
+  } else {
+    resolvedCommand = path.isAbsolute(command)
+      ? command
+      : path.resolve(path.dirname(CONFIG_PATH), command);
+  }
 
   if (!fs.existsSync(resolvedCommand)) {
     console.error(`[verify-hermes-config] NOTE: glide command not found at ${resolvedCommand}`);

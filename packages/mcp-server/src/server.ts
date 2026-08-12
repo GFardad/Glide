@@ -6,9 +6,44 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { tools } from "./tools/index.js";
+import type { GlideTool } from "./tools/types.js";
 
 const REQUEST_TIMEOUT_MS = 120_000;
+
+function parseToolArguments(tool: GlideTool, args: Record<string, unknown>): Record<string, unknown> {
+  if (tool.inputSchema && tool.inputSchema.properties) {
+    const parsed: Record<string, unknown> = {};
+    const properties = tool.inputSchema.properties;
+    const required = new Set(tool.inputSchema.required ?? []);
+    for (const [key, schema] of Object.entries(properties)) {
+      const value = args[key];
+      if (value === undefined || value === null) {
+        if (required.has(key)) {
+          throw new Error(`Missing required argument: ${key}`);
+        }
+        continue;
+      }
+      const expectedType = (schema as { type?: string }).type;
+      if (expectedType === "string" && typeof value !== "string") {
+        throw new Error(`Invalid argument: ${key} must be a string`);
+      }
+      if (expectedType === "array" && !Array.isArray(value)) {
+        throw new Error(`Invalid argument: ${key} must be an array`);
+      }
+      if (expectedType === "number" && typeof value !== "number") {
+        throw new Error(`Invalid argument: ${key} must be a number`);
+      }
+      if (expectedType === "boolean" && typeof value !== "boolean") {
+        throw new Error(`Invalid argument: ${key} must be a boolean`);
+      }
+      parsed[key] = value;
+    }
+    return parsed;
+  }
+  return args;
+}
 
 export function createGlideServer(): Server {
   const server = new Server(
@@ -29,11 +64,13 @@ export function createGlideServer(): Server {
     if (!tool) {
       throw new Error(`Unknown tool: ${request.params.name}`);
     }
+    const arguments_ = request.params.arguments ?? {};
+    const parsed = parseToolArguments(tool, arguments_ as Record<string, unknown>);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const result = await tool.handler(
-        (request.params.arguments ?? {}) as Record<string, unknown>
+        parsed
       );
       return result;
     } finally {

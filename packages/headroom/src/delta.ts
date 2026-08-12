@@ -1,5 +1,5 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
+import { join, dirname } from "node:path";
 
 /**
  * Evidence-backed update describing a reversible change to campaign goals.

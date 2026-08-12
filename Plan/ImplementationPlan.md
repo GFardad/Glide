@@ -7,7 +7,8 @@
 - TypeScript monorepo scaffolded and verified at `~/Projects/Glide/`
 - **Phases 0–5 complete**, **Phase 6 (dashboard) complete**
 - All quality gates green: typecheck, lint, build, tests (163 tests / 27 files), 97.33% stmts coverage, no circular deps, prettier clean
-- **Remaining**: Hermes wiring, CLI, Prime-Agent depth, graphify integration
+- **Remaining**: Prime-Agent depth
+- **In progress**: Hermes wiring, CLI, graphify integration
 
 ## Target State
 
@@ -124,13 +125,19 @@
 ## Remaining Work
 
 1. **Hermes wiring** — integrate Glide as a native Hermes MCP plugin so it is callable from any session
+   - Next: add `mcpServers.glide` block to `~/.hermes/config.yaml` and verify with `node scripts/verify-hermes-config.cjs`
+   - Next: confirm `/reload-mcp` or session restart discovers `glide_*` tools
 2. **CLI** — ship a `glide` CLI wrapper around the MCP stdio control plane
+   - Next: create `scripts/glide.mjs` that spawns `packages/mcp-server/dist/index.js`
+   - Next: add `pnpm glide --help` entry in root `package.json`
 3. **Prime-Agent depth** — extend session durability beyond basic scaffolding
 4. **graphify integration** — hook the knowledge-graph layer into Glide's trace and program-management tools
+   - Next: validate `glide_graph` MCP tool against `GraphifyClient` in `packages/tracer`
+   - Next: add smoke coverage for `glide_graph` actions: query, path, community, node, pr_impact
 
 ## Immediate Next Steps
 
-1. Wire Glide into Hermes as a native MCP plugin
-2. Implement the `glide` CLI entry point
+1. Add Hermes `mcpServers.glide` config and run `node scripts/verify-hermes-config.cjs`
+2. Implement `scripts/glide.mjs` CLI wrapper and wire it into `package.json` scripts
 3. Extend Prime-Agent session durability
-4. Integrate graphify for knowledge-graph-backed trace and program views
+4. Validate `glide_graph` end-to-end against local `graphify-out/graph.json`

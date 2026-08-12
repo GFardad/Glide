@@ -104,7 +104,15 @@ export function loadConstitution(root: string): Constitution {
   if (!existsSync(path)) {
     throw new Error(`Constitution not found: ${path}`);
   }
-  return JSON.parse(readFileSync(path, "utf8")) as Constitution;
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as Constitution;
+  } catch (error) {
+    throw new Error(
+      `Failed to parse constitution at ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 export function ensureConstitutionDir(root: string): void {

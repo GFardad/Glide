@@ -1,10 +1,9 @@
 import type {
   PluginDescriptor,
   PluginInstance,
-  PluginLoadError,
 } from "./types.js";
+import { validatePluginDescriptor } from "./loader.js";
 
-export type { PluginLoadError } from "./types.js";
 
 /**
  * Extension points are named hooks provided by a plugin that other plugins
@@ -202,12 +201,14 @@ export class CompositionRegistry {
           ...mergedDefaults,
         } as PluginDescriptor;
 
+        const validatedDescriptor = validatePluginDescriptor(descriptor);
+
         const preset = Array.from(mergedPresetIds)
           .map((id) => this.presets.get(id))
           .find((preset): preset is PresetDescriptor => preset !== undefined);
 
         composed.push({
-          descriptor,
+          descriptor: validatedDescriptor,
           role,
           ...(preset ? { preset } : {}),
           extensionPoints: this.resolveExtensionPointsForPlugin(reference.id),

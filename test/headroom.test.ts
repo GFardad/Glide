@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { HeadroomRuntime } from "../packages/headroom/src/runtime.js";
+
 import { listSnapshotIds, loadSnapshot } from "../packages/headroom/src/delta.js";
+import { HeadroomRuntime } from "../packages/headroom/src/runtime.js";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { runHeadroom } from "../packages/headroom/src/headroom.js";
@@ -39,14 +40,15 @@ describe("headroom runtime", () => {
     expect(result.driftDetected).toBe(false);
   });
 
-  it("detects drift when objective is empty", async () => {
+  it("rejects an empty objective (drift-detection masking)", async () => {
     const root = join(tmpRoot, "h4");
-    const result = await runHeadroom({
-      campaignDir: root,
-      objective: "",
-      roles: [],
-    });
-    expect(result.driftDetected).toBe(true);
+    await expect(
+      runHeadroom({
+        campaignDir: root,
+        objective: "",
+        roles: [],
+      })
+    ).rejects.toThrow("Objective must be a non-empty string");
   });
 
   it("returns role signals for selected roles", async () => {
@@ -120,20 +122,9 @@ describe("headroom runtime", () => {
 
   it("supports rollback using persisted snapshot history", async () => {
     const root = join(tmpRoot, "h10");
-    await runHeadroom({
-      campaignDir: root,
-      objective: "Build CLI",
-      roles: [],
-    });
-    await runHeadroom({
-      campaignDir: root,
-      objective: "Evolve CLI runtime",
-      roles: [],
-    });
-    const { HeadroomRuntime } = await import(
-      "../packages/headroom/src/runtime.js"
-    );
-    const runtime = new HeadroomRuntime(root);
+    const runtime = new HeadroomRuntime({ root });
+    await runtime.init("Build CLI");
+    await runtime.init("Evolve CLI runtime");
     const latest = runtime.loadLatestSnapshot();
     expect(latest.id).toBeDefined();
     const ids = listSnapshotIds(root);

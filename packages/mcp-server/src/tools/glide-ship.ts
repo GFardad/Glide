@@ -1,7 +1,13 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
+import { createPathGuard } from "@glide/core";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+const guardWorkspace = createPathGuard({
+  allowedRoots: [process.cwd(), "/tmp"],
+  requireExists: true,
+});
 
 function ensurePlanDir(campaignDir: string): string {
   const planDir = join(campaignDir, "plan");
@@ -44,6 +50,8 @@ export const glideShipTool: GlideTool = {
     if (typeof campaignDir !== "string" || typeof target !== "string") {
       throw new Error("campaign_dir and target are required");
     }
+
+    guardWorkspace(campaignDir);
 
     const planDir = ensurePlanDir(campaignDir);
     const path = nextArtifactPath(planDir, "ship");

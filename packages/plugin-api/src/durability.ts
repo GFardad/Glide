@@ -1,6 +1,7 @@
 import type { PluginInstance } from "./types.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteFileSync } from "@glide/core";
 
 export interface SessionDurabilityOptions {
   rootDir?: string;
@@ -22,7 +23,7 @@ export class PrimeAgentSessionDurability {
 
   constructor(options: SessionDurabilityOptions = {}) {
     this.stateDir = options.rootDir ?? ".glide-plugin-state";
-    this.eventFile = options.eventFile ?? "session-events.jsonl";
+    this.eventFile = options.eventFile ?? join(this.stateDir, "session-events.jsonl");
     this.extension = options.extension ?? ".json";
   }
 
@@ -43,7 +44,7 @@ export class PrimeAgentSessionDurability {
     const file = this.filePath(instance.descriptor.id);
     writeFileSync(file, state, "utf8");
 
-    this.appendEvent({
+    await this.appendEvent({
       type: "state_persisted",
       pluginId: instance.descriptor.id,
       timestamp: new Date().toISOString(),
@@ -58,7 +59,12 @@ export class PrimeAgentSessionDurability {
     }
 
     const raw = readFileSync(file, "utf8");
-    const payload = JSON.parse(raw) as Record<string, unknown>;
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
 
     if (payload.id !== undefined && (payload.id as string) !== pluginId) {
       return undefined;
@@ -66,7 +72,7 @@ export class PrimeAgentSessionDurability {
 
     const state = (payload.state ?? payload) as Record<string, unknown>;
 
-    this.appendEvent({
+    await this.appendEvent({
       type: "state_restored",
       pluginId,
       timestamp: new Date().toISOString(),
@@ -83,7 +89,7 @@ export class PrimeAgentSessionDurability {
 
     rmSync(file);
 
-    this.appendEvent({
+    await this.appendEvent({
       type: "state_removed",
       pluginId,
       timestamp: new Date().toISOString(),
@@ -94,15 +100,20 @@ export class PrimeAgentSessionDurability {
 
   async clear(): Promise<void> {
     if (!existsSync(this.stateDir)) {
-      return;
+      mkdirSync(this.stateDir, { recursive: true });
     }
 
-    const files = readFileSync(this.eventFile, "utf8")
-      .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as SessionDurabilityEvent)
-      .filter((event) => event.type === "state_persisted")
-      .map((event) => this.filePath(event.pluginId));
+    let files: string[] = [];
+    try {
+      files = readFileSync(this.eventFile, "utf8")
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => JSON.parse(line) as SessionDurabilityEvent)
+        .filter((event) => event.type === "state_persisted")
+        .map((event) => this.filePath(event.pluginId));
+    } catch {
+      // Event file missing or corrupt — nothing to clear.
+    }
 
     for (const file of files) {
       if (existsSync(file)) {
@@ -110,7 +121,14 @@ export class PrimeAgentSessionDurability {
       }
     }
 
-    this.appendEvent({
+    // Reset the event stream before recording the clear event.
+    try {
+      writeFileSync(this.eventFile, "", "utf8");
+    } catch {
+      // Ignore if event file doesn't exist.
+    }
+
+    await this.appendEvent({
       type: "state_cleared",
       pluginId: "*",
       timestamp: new Date().toISOString(),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { randomUUID } from "node:crypto";
+
 import { createGlideServer } from "../packages/mcp-server/src/server.js";
 import { Client } from "../packages/mcp-server/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js";
 import { InMemoryTransport } from "../packages/mcp-server/node_modules/@modelcontextprotocol/sdk/dist/esm/inMemory.js";

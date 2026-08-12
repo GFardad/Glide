@@ -29,13 +29,15 @@ describe("dashboard barrel and render", () => {
     writeFileSync(
       join(root, "campaign.json"),
       JSON.stringify({
-        id,
-        root,
-        goal,
-        nonGoals: [],
-        assumptions: [],
-        createdAt: updatedAt,
-        updatedAt,
+        campaign: {
+          id,
+          root,
+          goal,
+          nonGoals: [],
+          assumptions: [],
+          createdAt: updatedAt,
+          updatedAt,
+        },
       })
     );
     writeFileSync(join(root, "artifacts", "plan.md"), "# plan");
@@ -81,20 +83,9 @@ describe("dashboard barrel and render", () => {
   });
 
   it("generateDashboard handles missing artifacts and sessions dirs", () => {
-    const root = join(tmpRoot, "bare");
-    mkdirSync(root, { recursive: true });
-    writeFileSync(
-      join(root, "campaign.json"),
-      JSON.stringify({
-        id: "bare",
-        root,
-        goal: "Bare",
-        nonGoals: [],
-        assumptions: [],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      })
-    );
+    const root = writeCampaign("bare", "Bare campaign", "2026-01-01T00:00:00.000Z");
+    rmSync(join(root, "artifacts"), { recursive: true, force: true });
+    rmSync(join(root, "sessions"), { recursive: true, force: true });
     const view = generateDashboard([root]);
     expect(view.campaigns[0]?.artifactCount).toBe(0);
     expect(view.campaigns[0]?.sessionCount).toBe(0);

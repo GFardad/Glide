@@ -1,9 +1,43 @@
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { runRoleAnalysis } from "./roles.js";
 import { HeadroomRuntime } from "./runtime.js";
 import type { HeadroomDelta } from "./delta.js";
+
+/** Raised when headroom input is invalid (e.g. missing objective). */
+export class HeadroomInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HeadroomInputError";
+  }
+}
+
+/** Raised when writing a headroom artifact to disk fails. Carries the target path. */
+export class HeadroomIOError extends Error {
+  readonly path: string;
+  constructor(message: string, path: string) {
+    super(message);
+    this.name = "HeadroomIOError";
+    this.path = path;
+  }
+}
+
+/** Write an artifact, surfacing the target path on failure for debuggability. */
+function writeArtifact(campaignDir: string, fileName: string, content: string): void {
+  const path = join(campaignDir, "artifacts", fileName);
+  try {
+    mkdirSync(join(campaignDir, "artifacts"), { recursive: true });
+    writeFileSync(path, content, "utf8");
+  } catch (error) {
+    throw new HeadroomIOError(
+      `Failed to write artifact ${fileName} (${path}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      path
+    );
+  }
+}
 
 export interface HeadroomInput {
   campaignDir: string;
@@ -35,10 +69,14 @@ export async function runHeadroom(
   input: HeadroomInput
 ): Promise<HeadroomResult> {
   const { campaignDir, objective, roles } = input;
+  if (typeof objective !== "string" || objective.trim().length === 0) {
+    throw new HeadroomInputError("Objective must be a non-empty string");
+  }
   const selectedRoles = roles.length > 0 ? roles : DEFAULT_ROLES;
 
-  const runtime = new HeadroomRuntime(campaignDir);
-  const state = await runtime.initialize(objective);
+  const runtime = new HeadroomRuntime({ root: campaignDir });
+  runtime.start();
+  const state = await runtime.init(objective);
 
   const roleAnalysis = await runRoleAnalysis(objective, selectedRoles, campaignDir);
   const riskLog = generateRiskLog(roleAnalysis);
@@ -66,11 +104,12 @@ export async function runHeadroom(
 
   runtime.applyDelta(delta);
 
-  writeFileSync(join(campaignDir, "artifacts", "risk_log.md"), riskLog);
-  writeFileSync(join(campaignDir, "artifacts", "architecture.md"), architecture);
-  writeFileSync(join(campaignDir, "artifacts", "todo_registry.md"), todoRegistry);
-  writeFileSync(
-    join(campaignDir, "artifacts", "role_analysis.json"),
+  writeArtifact(campaignDir, "risk_log.md", riskLog);
+  writeArtifact(campaignDir, "architecture.md", architecture);
+  writeArtifact(campaignDir, "todo_registry.md", todoRegistry);
+  writeArtifact(
+    campaignDir,
+    "role_analysis.json",
     JSON.stringify(roleAnalysis, null, 2)
   );
 

@@ -14,6 +14,7 @@ export * from "./glide-review.js";
 export * from "./glide-ship.js";
 export * from "./glide-converge.js";
 export * from "./glide-gates.js";
+export * from "./glide-graph.js";
 
 import { glideGoalSetTool } from "./glide-goal.js";
 import { glideGoalGetTool } from "./glide-goal.js";
@@ -31,6 +32,7 @@ import { glideReviewTool } from "./glide-review.js";
 import { glideShipTool } from "./glide-ship.js";
 import { glideConvergeTool } from "./glide-converge.js";
 import { glideGatesTool } from "./glide-gates.js";
+import { glideGraphTool } from "./glide-graph.js";
 
 export const tools: GlideTool[] = [
   glideGoalSetTool,
@@ -49,4 +51,5 @@ export const tools: GlideTool[] = [
   glideShipTool,
   glideConvergeTool,
   glideGatesTool,
+  glideGraphTool,
 ];

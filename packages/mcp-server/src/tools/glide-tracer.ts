@@ -15,60 +15,51 @@ export const glideTracerTool: GlideTool = {
     required: ["action", "workspace", "agent_id"],
   },
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-    const action = args["action"];
-    const workspace = args["workspace"];
-    const agentId = args["agent_id"];
+    const action = args.action as string;
+    const workspace = args.workspace as string;
+    const agentId = args.agent_id as string;
 
-    if (
-      typeof action !== "string" ||
-      typeof workspace !== "string" ||
-      typeof agentId !== "string"
-    ) {
+    if (action !== "trace" && action !== "indepth") {
+      throw new Error(`Unsupported tracer action: ${action}`);
+    }
+
+    if (!action || !workspace || !agentId) {
       throw new Error("action, workspace, and agent_id are required");
     }
 
-    if (action === "trace") {
-      try {
-        const trace = traceAgent({ workspace, agentId });
+    try {
+      if (action === "trace") {
+        const trace = await traceAgent({ workspace, agentId });
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
                 ok: true,
-                action,
-                agent_id: trace.agentId,
+                agent_id: agentId,
                 goal: trace.goal,
                 notes: trace.notes,
-                todos: trace.todos,
-                parent_id: trace.parentId,
-                children: trace.children,
-              }),
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                ok: false,
-                action,
-                agent_id: agentId,
-                error: error instanceof Error ? error.message : "unknown error",
+                tool: "glide_tracer",
               }),
             },
           ],
         };
       }
-    }
 
-    if (action === "indepth") {
-      const md = indepthAgent({ workspace, agentId });
-      return { content: [{ type: "text", text: md }] };
+      const md = await indepthAgent({ workspace, agentId });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: true, action, markdown: md }),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text", text: JSON.stringify({ ok: false, error: message }) }],
+      };
     }
-
-    throw new Error(`Unsupported tracer action: ${action}`);
   },
 };

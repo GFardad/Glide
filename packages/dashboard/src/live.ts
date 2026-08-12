@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
-import { loadCampaign } from "./generator.js";
+import { loadCampaign, jsonForScript } from "./generator.js";
 
 /** Default auto-refresh interval (seconds) for the live view. */
 export const LIVE_REFRESH_SECONDS = 5;
@@ -114,6 +114,7 @@ function loadSession(sourceFile: string): LiveSession | undefined {
       readFileSync(sourceFile, "utf8")
     ) as Partial<SessionRecord>;
     if (typeof raw.session_id !== "string" || raw.session_id.length === 0) {
+      console.error(`[dashboard] session rejected: missing session_id in ${sourceFile}`);
       return undefined;
     }
     const sessionsDir = dirname(sourceFile);
@@ -132,7 +133,8 @@ function loadSession(sourceFile: string): LiveSession | undefined {
       createdAt: toDate(session.created_at),
       tasks: loadSessionTasks(sessionsDir, session, sourceFile),
     };
-  } catch {
+  } catch (error) {
+    console.error(`[dashboard] failed to load session ${sourceFile}:`, error);
     return undefined;
   }
 }
@@ -147,7 +149,8 @@ function loadLiveCampaign(root: string): LiveCampaign | undefined {
   let campaign;
   try {
     campaign = loadCampaign(root);
-  } catch {
+  } catch (error) {
+    console.error(`[dashboard] failed to load campaign ${root}:`, error);
     return undefined;
   }
   const sessionsDir = join(root, "sessions");
@@ -246,6 +249,8 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 .no-tasks { margin: 10px 0 0; color: var(--muted); font-size: 12px; font-style: italic; }
 .empty { margin-top: 22px; padding: 18px; border: 1px dashed var(--border); border-radius: 14px; color: var(--muted); }
 footer { padding: 20px 24px; color: var(--muted); font-size: 12px; }
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; padding: 8px 12px; background: var(--accent); color: #082f49; text-decoration: none; border-radius: 0 0 8px 0; }
+.skip-link:focus { left: 0; }
 `;
 
 const LIVE_SCRIPT = `
@@ -356,15 +361,11 @@ export function renderLiveHtml(
   view: LiveView,
   refreshSeconds: number = LIVE_REFRESH_SECONDS
 ): string {
-  const dataJson = JSON.stringify(
-    {
-      campaigns: view.campaigns,
-      generatedAt: view.generatedAt.toISOString(),
-      refreshSeconds,
-    },
-    null,
-    2
-  ).replace(/</g, "\\u003c");
+  const dataJson = jsonForScript({
+    campaigns: view.campaigns,
+    generatedAt: view.generatedAt.toISOString(),
+    refreshSeconds,
+  });
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -375,7 +376,8 @@ export function renderLiveHtml(
   <style>${LIVE_CSS}</style>
 </head>
 <body>
-  <div id="app"></div>
+  <a href="#app" class="skip-link">Skip to content</a>
+  <main id="app" aria-live="polite"></main>
   <script>
     window.__GLIDE_LIVE__ = ${dataJson};
   </script>

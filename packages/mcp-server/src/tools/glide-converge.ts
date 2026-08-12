@@ -1,8 +1,14 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
+import { createPathGuard } from "@glide/core";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runConvergeAssessment } from "@glide/headroom";
+
+const guardWorkspace = createPathGuard({
+  allowedRoots: [process.cwd(), "/tmp"],
+  requireExists: true,
+});
 
 export const glideConvergeTool: GlideTool = {
   name: "glide_converge",
@@ -38,6 +44,8 @@ export const glideConvergeTool: GlideTool = {
       throw new Error("campaign_dir is required");
     }
 
+    guardWorkspace(campaignDir);
+
     const repoRoot =
       (args["repo_root"] as string | undefined)?.trim() ||
       join(campaignDir, "..", "..");
@@ -45,6 +53,9 @@ export const glideConvergeTool: GlideTool = {
       (args["plan_dir"] as string | undefined)?.trim() ||
       join(campaignDir, "plan");
     const writeReport = (args["write_report"] as boolean | undefined) ?? false;
+
+    guardWorkspace(repoRoot);
+    guardWorkspace(planDir);
 
     const report = runConvergeAssessment(repoRoot, planDir);
 

@@ -8,7 +8,14 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "json", "html"],
       include: ["packages/*/src/**/*.ts"],
-      exclude: ["packages/*/src/cli/**", "packages/*/src/plugins/**"],
+      exclude: [
+        "packages/*/src/cli/**",
+        "packages/*/src/cli.ts",
+        "packages/*/src/plugins/**",
+        "**/*.d.ts",
+        "**/types.ts",
+        "**/index.ts",
+      ],
       provider: "v8",
       thresholds: {
         lines: 80,

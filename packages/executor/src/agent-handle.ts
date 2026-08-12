@@ -20,4 +20,8 @@ export interface AgentHandle {
   messages: AgentMessage[];
   /** Exit code of the child process when status is terminal. */
   returnCode?: number | null;
+  /** Trace ID for correlation across events. */
+  traceId?: string | undefined;
+  /** Span ID for this agent execution. */
+  spanId?: string | undefined;
 }

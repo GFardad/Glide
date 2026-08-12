@@ -40,7 +40,15 @@ export function loadCampaign(root: string): Campaign {
   if (!existsSync(path)) {
     throw new CampaignNotFoundError(root);
   }
-  return JSON.parse(readFileSync(path, "utf8")) as Campaign;
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as Campaign;
+  } catch (error) {
+    throw new Error(
+      `Failed to parse campaign at ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 export function ensureCampaignDir(root: string): void {

@@ -1,52 +1,46 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
-import { createSubject, authorize } from "@glide/permissions";
+import { PermissionRuntime } from "@glide/permissions";
+
+const runtime = new PermissionRuntime();
 
 export const glidePermissionsTool: GlideTool = {
   name: "glide_permissions",
-  description:
-    "Check whether a subject is authorized to perform an action on a resource.",
+  description: "Check whether a subject is authorized to perform an action on a resource.",
   inputSchema: {
     type: "object",
     properties: {
-      action: { type: "string", description: "Permission action to check" },
-      resource: { type: "string", description: "Resource being accessed" },
-      subject_id: { type: "string", description: "Subject identifier" },
-      subject_role: {
-        type: "string",
-        description: "Subject role used for authorization",
-      },
+      action: { type: "string" },
+      resource: { type: "string" },
+      subject_id: { type: "string" },
+      subject_role: { type: "string" },
     },
     required: ["action", "resource", "subject_id", "subject_role"],
   },
-  handler: (input: Record<string, unknown>): CallToolResult => {
-    const subjectId =
-      typeof input.subject_id === "string" ? input.subject_id : "";
-    const subjectRole =
-      typeof input.subject_role === "string" ? input.subject_role : "";
-    const action = typeof input.action === "string" ? input.action : "";
-    const resource = typeof input.resource === "string" ? input.resource : "";
+  handler: (args: Record<string, unknown>): CallToolResult => {
+    const action = args.action as string;
+    const resource = args.resource as string;
+    const subjectId = args.subject_id as string;
+    const subjectRole = args.subject_role as string;
 
-    if (!subjectId || !subjectRole || !action || !resource) {
+    if (!action || !resource || !subjectId || !subjectRole) {
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ ok: false, reason: "missing_fields" }),
-          },
-        ],
+        content: [{ type: "text", text: JSON.stringify({ ok: false, reason: "missing_fields" }) }],
       };
     }
 
-    const subject = createSubject(subjectRole, [action]);
-    const result = authorize(subject, { action, resource });
+    const secretsScopes = ["secrets", "secrets:read", "secrets:write"];
+    const requiresSecrets = secretsScopes.some((scope) => (args.scopes as string[] | undefined)?.includes(scope));
+    if (requiresSecrets && !(args.scopes as string[] | undefined)?.includes("secrets")) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ ok: false, reason: "secrets_scope_required" }) }],
+      };
+    }
+
+    const subject = runtime.createSubject(subjectRole, (args.scopes as string[] | undefined) ?? [action]);
+    const result = runtime.authorize(subject, { action, resource });
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({ subject_id: subjectId, ...result }),
-        },
-      ],
+      content: [{ type: "text", text: JSON.stringify({ ok: result.ok, subject_id: subjectId, allowed: result.ok, ...(result.reason ? { reason: result.reason } : {}) }) }],
     };
   },
 };

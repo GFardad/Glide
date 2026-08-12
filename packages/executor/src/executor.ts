@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import type { AgentHandle } from "./agent-handle.js";
 import type { AgentMessage } from "./agent-message.js";
 import { AgentStatus } from "./agent-status.js";
@@ -299,12 +299,14 @@ export class ExecutorRuntime {
 
   async awaitAgent(handle: AgentHandle, timeoutMs?: number): Promise<AgentResult> {
     return new Promise((resolve) => {
+      const terminal = (): AgentResult => ({
+        handle,
+        exitCode: handle.returnCode ?? null,
+        error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
+      });
+
       if (handle.status !== AgentStatus.Pending && handle.status !== AgentStatus.Running) {
-        return resolve({
-          handle,
-          exitCode: handle.returnCode ?? null,
-          error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
-        });
+        return resolve(terminal());
       }
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -318,6 +320,9 @@ export class ExecutorRuntime {
         }, timeoutMs);
       }
 
+      // Exponential backoff (50ms → 100ms → … cap 500ms) to avoid busy
+      // polling millions of no-op timers during long agent runs.
+      let delay = 50;
       const check = () => {
         if (
           handle.status === AgentStatus.Completed ||
@@ -325,14 +330,10 @@ export class ExecutorRuntime {
           handle.status === AgentStatus.Cancelled
         ) {
           if (timeoutId) clearTimeout(timeoutId);
-          resolve({
-            handle,
-            exitCode: handle.returnCode ?? null,
-            error: handle.status === AgentStatus.Failed ? new Error("Agent failed") : undefined,
-          });
-        } else {
-          setTimeout(check, 50);
+          return resolve(terminal());
         }
+        setTimeout(check, delay);
+        delay = Math.min(delay * 2, 500);
       };
       check();
     });
@@ -340,9 +341,24 @@ export class ExecutorRuntime {
 }
 
 export function createIpcPath(baseDir: string, handleId: string): string {
-  const path = join(baseDir, `glide-agent-${handleId}.ipc`);
-  writeFileSync(path, "");
-  return path;
+  const sanitizedBaseDir = resolve(baseDir);
+  if (!existsSync(sanitizedBaseDir)) {
+    throw new Error(`IPC base directory does not exist: ${sanitizedBaseDir}`);
+  }
+
+  const sanitizedHandleId = handleId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!sanitizedHandleId || sanitizedHandleId.length < 8) {
+    throw new Error(`Invalid IPC handle ID; expected at least 8 alphanumeric characters`);
+  }
+
+  const path = join(sanitizedBaseDir, `glide-agent-${sanitizedHandleId}.ipc`);
+  const resolvedPath = resolve(path);
+  if (!resolvedPath.startsWith(sanitizedBaseDir + sep)) {
+    throw new Error(`IPC path escapes base directory: ${resolvedPath}`);
+  }
+
+  writeFileSync(resolvedPath, "");
+  return resolvedPath;
 }
 
 export function removeIpcPath(ipcPath: string): void {

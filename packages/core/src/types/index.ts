@@ -4,6 +4,8 @@ export type AgentId = string;
 export type SessionId = string;
 /** Unique identifier for a campaign. */
 export type CampaignId = string;
+/** Unique identifier for a team. */
+export type TeamId = string;
 
 /** Persistent campaign metadata used across execution artifacts. */
 export interface Campaign {

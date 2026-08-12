@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join, basename, extname } from "node:path";
+import { join, basename } from "node:path";
 
 /** Gap classification for plan-vs-codebase assessment. */
 export type GapKind = "missing" | "incomplete" | "divergent";

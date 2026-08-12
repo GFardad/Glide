@@ -6,9 +6,12 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "start": "node dist/index.js",
+    "start": "node dist/cli.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
+  },
+  "bin": {
+    "glide-mcp-server": "./dist/cli.js"
   },
   "dependencies": {
     "@glide/core": "workspace:*",

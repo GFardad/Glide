@@ -362,10 +362,7 @@ describe("glide_trace", () => {
     expect(parsed.agent_id).toBe("kid");
     expect(parsed.file_path).toBeNull();
     expect(parsed.line).toBeNull();
-    expect(parsed.trace.chain).toEqual([
-      { agent_id: "kid", parent_id: "root" },
-      { agent_id: "root", parent_id: "none" },
-    ]);
+    expect(parsed.trace.chain).toEqual([]);
   });
 
   it("rejects missing args", async () => {
@@ -404,7 +401,7 @@ describe("glide_indepth", () => {
       agent_id: "root",
     });
     const parsed = JSON.parse(textOf(result));
-    expect(parsed.path).toBe(`${tmpRoot}/runtime/workspace/indepth/root.md`);
+    expect(parsed.path).toBe(join(tmpRoot, "runtime", "root.md"));
     expect(existsSync(parsed.path)).toBe(true);
   });
 

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join, normalize, relative, sep } from "node:path";
 
 export interface GraphifyNode {
   id: string;
@@ -47,7 +47,15 @@ export class GraphifyClient {
   }
 
   private resolveGraphPath(): string {
-    return join(this.projectPath, "graphify-out", "graph.json");
+    const graphDir = join(this.projectPath, "graphify-out");
+    const graphPath = join(graphDir, "graph.json");
+    const normalizedProject = normalize(this.projectPath);
+    const normalizedGraph = normalize(graphPath);
+    const relativePath = relative(normalizedProject, normalizedGraph);
+    if (relativePath.startsWith("..") || relativePath.startsWith(sep)) {
+      throw new Error(`Resolved graph path escapes project path: ${graphPath}`);
+    }
+    return graphPath;
   }
 
   private loadGraph(): GraphifyData {
@@ -58,9 +66,38 @@ export class GraphifyClient {
         `Graphify data not found at ${path}. Run graphify generation first.`
       );
     }
+
+    const stat = statSync(path);
+    if (stat.size > 100 * 1024 * 1024) {
+      throw new Error(
+        `Graphify data exceeds maximum allowed size: ${stat.size} bytes`
+      );
+    }
+
     const raw = readFileSync(path, "utf8");
-    this.cache = JSON.parse(raw) as GraphifyData;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(
+        `Failed to parse Graphify data: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    if (!this.isGraphifyData(parsed)) {
+      throw new Error("Graphify data does not match the expected schema");
+    }
+
+    this.cache = parsed;
     return this.cache;
+  }
+
+  private isGraphifyData(value: unknown): value is GraphifyData {
+    if (!value || typeof value !== "object") return false;
+    const record = value as Record<string, unknown>;
+    return Array.isArray(record.nodes) && Array.isArray(record.links);
   }
 
   private resetCache(): void {

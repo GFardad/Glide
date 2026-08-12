@@ -13,6 +13,7 @@
     "@glide/core": "workspace:*",
     "@glide/plugin-api": "workspace:*",
     "@glide/permissions": "workspace:*",
+    "@glide/tracer": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {

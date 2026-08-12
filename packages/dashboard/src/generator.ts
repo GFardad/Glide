@@ -32,11 +32,58 @@ export interface Campaign {
 }
 
 export function loadCampaign(root: string): Campaign {
-  const path = join(root, "campaign.json");
+  const constitutionPath = join(root, "campaigns", "constitution.json");
+  const legacyPath = join(root, "campaign.json");
+  const path = existsSync(constitutionPath) ? constitutionPath : legacyPath;
   if (!existsSync(path)) {
     throw new Error(`Campaign not found: ${root}`);
   }
-  return JSON.parse(readFileSync(path, "utf8")) as Campaign;
+  let data: unknown;
+  try {
+    data = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Malformed campaign JSON at ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+  const campaign =
+    data && typeof data === "object" && "campaign" in data
+      ? (data as { campaign?: unknown }).campaign
+      : data;
+  if (!campaign || typeof campaign !== "object") {
+    throw new Error(`Campaign not found: ${root}`);
+  }
+  const c = campaign as Record<string, unknown>;
+  const id = typeof c.id === "string" ? c.id : "";
+  const goal = typeof c.goal === "string" ? c.goal : "";
+  const nonGoals = Array.isArray(c.nonGoals)
+    ? c.nonGoals.filter((x): x is string => typeof x === "string")
+    : [];
+  const assumptions = Array.isArray(c.assumptions)
+    ? c.assumptions.filter((x): x is string => typeof x === "string")
+    : [];
+  return {
+    id,
+    root,
+    goal,
+    nonGoals,
+    assumptions,
+    createdAt: toDate(c.createdAt) ?? new Date(0),
+    updatedAt: toDate(c.updatedAt) ?? new Date(0),
+  } satisfies Campaign;
+}
+
+/** Coerce an unknown value into a Date, tolerating ISO strings and epoch numbers. */
+function toDate(value: unknown): Date | undefined {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+  return undefined;
 }
 
 function listArtifacts(root: string): DashboardArtifact[] {
@@ -80,7 +127,7 @@ function buildCampaignListing(root: string): CampaignListing {
 
 export function listCampaigns(roots: string[]): CampaignListing[] {
   return roots
-    .filter((root) => existsSync(join(root, "campaign.json")))
+    .filter((root) => existsSync(join(root, "campaign.json")) || existsSync(join(root, "campaigns", "constitution.json")))
     .map(buildCampaignListing)
     .sort(
       (a, b) =>
@@ -128,6 +175,8 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 .kv b { color: var(--text); font-weight: 600; }
 .empty { margin-top: 22px; padding: 18px; border: 1px dashed var(--border); border-radius: 14px; color: var(--muted); }
 footer { padding: 20px 24px; color: var(--muted); font-size: 12px; }
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; padding: 8px 12px; background: var(--accent); color: #082f49; text-decoration: none; border-radius: 0 0 8px 0; }
+.skip-link:focus { left: 0; }
 `;
 
 const SCRIPT = `
@@ -193,7 +242,10 @@ renderDashboard(view);
 `;
 
 export function renderHtml(view: DashboardView): string {
-  const campaignsJson = JSON.stringify(view.campaigns, null, 2);
+  const campaignsJson = jsonForScript({
+    campaigns: view.campaigns,
+    generatedAt: view.generatedAt.toISOString(),
+  });
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,12 +255,27 @@ export function renderHtml(view: DashboardView): string {
   <style>${CSS}</style>
 </head>
 <body>
-  <div id="app"></div>
+  <a href="#app" class="skip-link">Skip to content</a>
+  <main id="app" aria-live="polite"></main>
   <script>
     window.__GLIDE_DASHBOARD__ = ${campaignsJson};
-    window.__GLIDE_DASHBOARD__.generatedAt = new Date("${view.generatedAt.toISOString()}").toISOString();
   </script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;
+}
+
+/**
+ * Serialize a value into a `<script>`-safe JSON literal, neutralizing any
+ * sequence that could break out of the script context (`</script>`, HTML
+ * entities, and U+2028/U+2029 line separators). This prevents stored XSS when
+ * user-derived campaign/session fields are embedded into rendered HTML.
+ */
+export function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }

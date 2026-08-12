@@ -1,17 +1,6 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
-import {
-  specPlanAlignmentGate,
-  planTaskCoverageGate,
-  testPresenceGate,
-  typecheckGate,
-  lintGate,
-  buildGate,
-  runGates,
-  DEFAULT_GATES,
-} from "@glide/permissions";
-
-const ALL_GATES = DEFAULT_GATES;
+import { runGates, DEFAULT_GATES } from "@glide/permissions";
 
 export const glideGatesTool: GlideTool = {
   name: "glide_gates",

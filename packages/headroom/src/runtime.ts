@@ -4,9 +4,6 @@ import type { HeadroomDelta, HeadroomSnapshot, GoalRecordSnapshot, HeadroomDelta
 import { loadLatestSnapshot, loadSnapshot, snapshotId, appendHistoryLine } from "./delta.js";
 import { loadCampaign, ensureCampaignDir, createCampaign } from "@glide/core";
 
-/**
- * Represents a loaded campaign together with its goal history context.
- */
 export interface HeadroomRuntimeState {
   campaign: {
     id: string;
@@ -20,13 +17,36 @@ export interface HeadroomRuntimeState {
   snapshot: HeadroomSnapshot | undefined;
 }
 
-/**
- * Evidence-backed runtime for headroom deltas with snapshot/rollback support.
- */
+export interface HeadroomRuntimeOptions {
+  root: string;
+  tracer?: {
+    log(
+      event: { action: string; status: string; detail?: string },
+      correlation?: { traceId?: string; spanId?: string; sessionId?: string }
+    ): Promise<void>;
+  };
+}
+
 export class HeadroomRuntime {
-  constructor(private root: string) {}
+  private readonly root: string;
+  private readonly tracer?: HeadroomRuntimeOptions["tracer"];
+  private initialized = false;
+  private state: HeadroomRuntimeState | null = null;
+
+  constructor(options: HeadroomRuntimeOptions | string) {
+    if (typeof options === "string") {
+      this.root = options;
+    } else {
+      this.root = options.root;
+      this.tracer = options.tracer;
+    }
+  }
 
   async initialize(objective: string): Promise<HeadroomRuntimeState> {
+    return this.init(objective);
+  }
+
+  async init(objective: string): Promise<HeadroomRuntimeState> {
     let campaign;
     if (existsSync(join(this.root, "campaign.json"))) {
       campaign = loadCampaign(this.root);
@@ -39,15 +59,35 @@ export class HeadroomRuntime {
     const snapshot = this.buildSnapshot(campaign);
     appendHistoryLine(this.root, JSON.stringify(snapshot));
 
-    return {
+    this.state = {
       ...state,
       snapshot,
     };
+    this.initialized = true;
+    return this.state;
   }
 
-  /**
-   * Applies a delta to the runtime state and persists it as a new snapshot.
-   */
+  start(): void {
+    this.initialized = true;
+  }
+
+  stop(): void {
+    this.initialized = false;
+    this.state = null;
+  }
+
+  dispose(): void {
+    this.stop();
+  }
+
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  getState(): HeadroomRuntimeState | null {
+    return this.state;
+  }
+
   applyDelta(delta: HeadroomDelta): HeadroomSnapshot {
     const current = loadLatestSnapshot(this.root) ?? this.emptySnapshot();
     const nextState = applyOperations(current.state, delta.operations);
@@ -59,24 +99,35 @@ export class HeadroomRuntime {
     };
 
     appendHistoryLine(this.root, JSON.stringify(snapshot));
+    if (this.state) {
+      this.state = {
+        ...this.state,
+        snapshot,
+      };
+    }
+    const sessionId = this.state?.campaign.id;
+    void this.tracer?.log(
+      { action: "headroom.apply_delta", status: "ok", detail: snapshot.id },
+      sessionId ? { sessionId } : undefined
+    );
     return snapshot;
   }
 
-  /**
-   * Rolls back to a previous snapshot by id.
-   */
   rollback(snapshotId: string): HeadroomSnapshot {
     const target = loadSnapshot(this.root, snapshotId);
     if (!target) {
       throw new Error(`Snapshot not found: ${snapshotId}`);
     }
     appendHistoryLine(this.root, JSON.stringify(target));
+    if (this.state) {
+      this.state = {
+        ...this.state,
+        snapshot: target,
+      };
+    }
     return target;
   }
 
-  /**
-   * Loads the latest snapshot from history.
-   */
   loadLatestSnapshot(): HeadroomSnapshot | undefined {
     return loadLatestSnapshot(this.root);
   }
@@ -126,52 +177,43 @@ export class HeadroomRuntime {
   }
 }
 
-function toIso(value: Date | string): string {
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-}
-
-function applyOperations(
-  state: GoalRecordSnapshot[],
-  operations: HeadroomDeltaOperation[]
-): GoalRecordSnapshot[] {
-  const map = new Map(state.map((item) => [item.id, item]));
-
-  for (const operation of operations) {
-    switch (operation.kind) {
-      case "add":
-        if (!map.has(operation.goalId)) {
-          map.set(operation.goalId, {
-            id: operation.goalId,
-            campaignId: operation.campaignId,
-            goal: operation.goal ?? "",
-            status: "active",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            metadata: operation.metadata,
-            source: undefined,
-          });
-        }
-        break;
-      case "update": {
-        const existing = map.get(operation.goalId);
-        if (existing) {
-          map.set(operation.goalId, {
-            ...existing,
-            goal: operation.goal ?? existing.goal,
-            updatedAt: new Date().toISOString(),
-            metadata: operation.metadata ?? existing.metadata,
-          });
-        }
-        break;
+function applyOperations(state: GoalRecordSnapshot[], operations: HeadroomDeltaOperation[]): GoalRecordSnapshot[] {
+  const next = [...state];
+  for (const op of operations) {
+    if (op.kind === "add") {
+      next.push({
+        id: op.goalId,
+        campaignId: op.campaignId,
+        goal: op.goal ?? "",
+        status: "active",
+        source: undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metadata: op.metadata,
+      });
+    } else if (op.kind === "update") {
+      const index = next.findIndex((item) => item.id === op.goalId);
+      if (index >= 0) {
+        const current = next[index]!;
+        const mergedMetadata = { ...(current.metadata ?? {}), ...(op.metadata ?? {}) };
+        next[index] = {
+          ...current,
+          goal: op.goal ?? "",
+          updatedAt: new Date().toISOString(),
+          metadata: mergedMetadata,
+        } as GoalRecordSnapshot;
       }
-      case "delete":
-        map.delete(operation.goalId);
-        break;
+    } else if (op.kind === "delete") {
+      const index = next.findIndex((item) => item.id === op.goalId);
+      if (index >= 0) {
+        next.splice(index, 1);
+      }
     }
   }
+  return next;
+}
 
-  return Array.from(map.values());
+function toIso(value: string | Date | undefined): string {
+  if (value instanceof Date) return value.toISOString();
+  return value ?? new Date().toISOString();
 }

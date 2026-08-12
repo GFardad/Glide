@@ -1,8 +1,14 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
+import { buildProgramTree, renderProgramMarkdown } from "@glide/executor";
+import { createPathGuard } from "@glide/core";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildProgramTree, renderProgramMarkdown } from "@glide/executor";
+
+const guardWorkspace = createPathGuard({
+  allowedRoots: [process.cwd(), "/tmp"],
+  requireExists: true,
+});
 
 function ensurePlanDir(campaignDir: string): string {
   const planDir = join(campaignDir, "plan");
@@ -56,6 +62,8 @@ export const glidePlanTool: GlideTool = {
     ) {
       throw new Error("campaign_dir and epic are required");
     }
+
+    guardWorkspace(campaignDir);
 
     const options: {
       campaignDir: string;

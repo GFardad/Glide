@@ -1,7 +1,7 @@
 # Glide MCP API
 
 The Glide control plane is an [MCP](https://modelcontextprotocol.io) stdio server
-(`packages/mcp-server`) exposing 14 tools. Each tool returns a JSON string inside
+(`packages/mcp-server`) exposing 17 tools. Each tool returns a JSON string inside
 `content[0].text`; failures return `isError: true` with an `error` code.
 
 ## Tools
@@ -107,13 +107,29 @@ Record a review artifact for a campaign.
 
 - Input: `{ campaign_dir: string, status: "success" | "failed", detail?: string }`
 - Output: `{ ok, tool, path }`
-
 ### `glide_ship`
 
 Record a ship artifact for a campaign.
-
 - Input: `{ campaign_dir: string, status: "success" | "failed", detail?: string }`
 - Output: `{ ok, tool, path }`
+
+### `glide_converge`
+
+Run converge analysis across a campaign.
+- Input: `{ campaign_dir: string }`
+- Output: `{ ok, tool, path, converged }`
+
+### `glide_gates`
+
+Run the configured quality gates against a workspace.
+- Input: `{ workspace: string, gates?: string[] }`
+- Output: `{ ok, tool, report: { passed, results } }`
+
+### `glide_graph`
+
+Query the Graphify knowledge graph for trace/program context.
+- Input: `{ action: "read" | "query" | "shortestPath" | "community" | "nodeDetails" | "prImpact", ... }`
+- Output: `{ ok, tool, ... }` — graph payload varies by action.
 
 ## Program-management flow
 

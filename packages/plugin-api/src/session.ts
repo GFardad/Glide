@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import type { SessionDurabilityOptions } from "./durability.js";
+import { atomicAppendFileSync } from "@glide/core";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,7 +56,7 @@ export class SessionEventLogWriter {
   }
 
   write(event: SessionEvent): void {
-    appendFileSync(this.filePath, JSON.stringify(event) + "\n", "utf8");
+    atomicAppendFileSync(this.filePath, JSON.stringify(event));
   }
 
   readAll(): SessionEvent[] {
@@ -64,7 +65,15 @@ export class SessionEventLogWriter {
     }
     const raw = readFileSync(this.filePath, "utf8");
     const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-    return lines.map((line) => JSON.parse(line) as SessionEvent);
+    const events: SessionEvent[] = [];
+    for (const line of lines) {
+      try {
+        events.push(JSON.parse(line) as SessionEvent);
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return events;
   }
 
   readForHandle(handle: string): SessionEvent[] {
@@ -146,7 +155,11 @@ export class SessionStore {
     if (!existsSync(path)) {
       return undefined;
     }
-    return JSON.parse(readFileSync(path, "utf8")) as SessionRecord;
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as SessionRecord;
+    } catch {
+      return undefined;
+    }
   }
 
   update(handle: string, patch: Partial<SessionRecord>): void {
@@ -183,7 +196,7 @@ export class SessionStore {
     const path = this.recordPath(handle);
     if (existsSync(path)) {
       try {
-        appendFileSync(path, "");
+        unlinkSync(path);
       } catch {
         // ignore cleanup errors
       }

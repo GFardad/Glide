@@ -152,7 +152,7 @@ CTO خروجی Headroom را دریافت می‌کند:
 - ساخت ساختار پوشه‌ها در `~/Projects/Glide/`
 - نگارش اسکلت CTO/Interpreter skill
 - تعریف MCP stub
-- migrate references از GlideLoop → Glide
+- مستندسازی ساختار TypeScript monorepo در `Plan/Architecture.md`
 
 ### 4.2 فاز ۱: لایه صفر
 

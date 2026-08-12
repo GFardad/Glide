@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import type {
   IPluginLoader,
   PluginDescriptor,
@@ -57,6 +57,15 @@ export class ExamplePluginLoader implements IPluginLoader {
       throw new PluginLoadError(
         "LOAD_FAILED",
         `Entrypoint module not found: ${modulePath}`
+      );
+    }
+
+    const resolvedModulePath = resolve(modulePath);
+    const resolvedPluginDir = resolve(this.pluginDir);
+    if (!resolvedModulePath.startsWith(resolvedPluginDir + sep)) {
+      throw new PluginLoadError(
+        "LOAD_FAILED",
+        `Entrypoint module escapes plugin directory: ${modulePath}`
       );
     }
 

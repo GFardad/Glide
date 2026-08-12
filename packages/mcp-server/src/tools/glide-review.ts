@@ -1,7 +1,13 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GlideTool } from "./types.js";
+import { createPathGuard } from "@glide/core";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+const guardWorkspace = createPathGuard({
+  allowedRoots: [process.cwd(), "/tmp"],
+  requireExists: true,
+});
 
 function ensurePlanDir(campaignDir: string): string {
   const planDir = join(campaignDir, "plan");
@@ -41,6 +47,8 @@ export const glideReviewTool: GlideTool = {
     ) {
       throw new Error("campaign_dir and decision are required");
     }
+
+    guardWorkspace(campaignDir);
 
     const planDir = ensurePlanDir(campaignDir);
     const path = nextArtifactPath(planDir, "review");

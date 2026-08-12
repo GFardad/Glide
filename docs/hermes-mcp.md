@@ -11,7 +11,7 @@ mcpServers:
   glide:
     command: node
     args:
-      - /media/Storage/home-gfardad/Projects/Glide/packages/mcp-server/dist/index.js
+      - /home/gfardad/Projects/Glide/packages/mcp-server/dist/index.js
     env: {}
     enabled: true
     connect_timeout: 120
@@ -37,7 +37,7 @@ It checks that the `mcpServers.glide` block exists and the command/args point to
 
 ## Troubleshooting
 
-- **Config not found:** Set `HERMES_HOME` or update `scripts/verify-hermes-config.js` with the real path.
+- **Config not found:** Set `HERMES_HOME` or update `scripts/verify-hermes-config.cjs` with the real path.
 - **Command not found:** Build the server first: `pnpm build` from the Glide repo root, or `pnpm --filter @glide/mcp-server build`.
 - **Unknown tool errors:** Restart the Hermes session/config after editing `config.yaml`; some environments require `/reset` or a full restart.
 - **Script not executable:** On some setups, ensure `node` is on `PATH` and `packages/mcp-server/dist/index.js` exists after build.
