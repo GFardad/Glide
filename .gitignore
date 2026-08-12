@@ -6,3 +6,13 @@ runtime/state/*.sqlite
 .env
 .venv/
 .coverage
+# Generated/runtime artifacts
+.glide-sessions
+campA
+campB
+coverage
+graphify-out
+node_modules
+packages/*/coverage
+snapshot
+todos.json
