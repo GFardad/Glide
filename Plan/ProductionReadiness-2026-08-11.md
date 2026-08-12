@@ -8,7 +8,7 @@
 ## Overall Health
 - `pnpm typecheck` / `build` / `lint` / `test` / `e2e` / `cli --help` all pass.
 - 300 tests across 46 files.
-- No leftover `GlideLoop`/`.py`/`systemd` refs outside plan docs and the intentional helper `scripts/generate-coverage-tests.py`.
+- No leftover `Glide`/`.py`/`systemd` refs outside plan docs and the intentional helper `scripts/generate-coverage-tests.py`.
 
 ---
 

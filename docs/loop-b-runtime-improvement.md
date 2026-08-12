@@ -1,4 +1,4 @@
-# Glideloop Loop B — Runtime Output Improvement
+# Glide Loop B — Runtime Output Improvement
 
 ## Status
 Proposed — focused design for daily runtime self-improvement.
@@ -124,7 +124,7 @@ Runtime Improver (Loop B)
 
 ### 5.1 Experience Replay Buffer
 ```
-/glideloop/meta/loop-b/
+/glide/meta/loop-b/
 ├── interventions/
 │   └── <session_id>_<timestamp>.jsonl
 ├── hindsight/

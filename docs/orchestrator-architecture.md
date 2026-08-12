@@ -1,4 +1,4 @@
-# Glideloop Orchestrator Design
+# Glide Orchestrator Design
 
 ## Status
 Proposed — based on 7 research agents' findings.
@@ -9,7 +9,7 @@ User <-> Hermes CTO Skill <-> CTO Assistant + Meeting Room
                                        |
                                Approved Plan
                                        |
-                        Glideloop Orchestrator (external)
+                        Glide Orchestrator (external)
                         /       |       \       \
                   Team A    Team B    Team C   ... (up to 20)
                   /    \     /    \     /    \
@@ -90,6 +90,6 @@ User <-> Hermes CTO Skill <-> CTO Assistant + Meeting Room
 - Versioned playbook store
 
 ## Dependencies
-- Research docs in `/home/gfardad/glideloop-*.md`
+- Research docs in `/home/gfardad/glide-*.md`
 - ADR-001: Context Isolation
 - Meeting Room Architecture doc

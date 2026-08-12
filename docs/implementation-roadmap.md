@@ -1,4 +1,4 @@
-# Glideloop — Implementation Roadmap
+# Glide — Implementation Roadmap
 
 ## Status
 Locked — execution order, phases, and first artifacts.
@@ -9,13 +9,13 @@ Build in vertical slices. Each slice produces a runnable artifact. No big-bang i
 ---
 
 ## Phase 0: Rename and Bootstrap
-**Goal:** preserve existing stable loop, establish Glideloop identity.
+**Goal:** preserve existing stable loop, establish Glide identity.
 
-- [x] `system/intelligent_loop.py` → `system/glideloop.py` (backward-compat shim retained temporarily)
-- [ ] `mythus5-intelligent-loop.service` → `mythus5-glideloop.service`
+- [x] `system/intelligent_loop.py` → `system/glide.py` (backward-compat shim retained temporarily)
+- [ ] `mythus5-intelligent-loop.service` → `mythus5-glide.service`
 - [ ] Systemd unit reload + restart verification
 - [ ] `runtime/` scaffold: `workspace/`, `sessions/`, `meta/`, `state/`
-- [ ] `pyproject.toml` for Glideloop runtime package
+- [ ] `pyproject.toml` for Glide runtime package
 
 ---
 
@@ -23,22 +23,22 @@ Build in vertical slices. Each slice produces a runnable artifact. No big-bang i
 **Goal:** prove the top-layer UX on Hermes side only. No external execution yet.
 
 ### Tickets
-1. **CTO Skill Core** — `skills/glideloop-cto/SKILL.md`
-   - Detects Glideloop objective from user message
+1. **CTO Skill Core** — `skills/glide-cto/SKILL.md`
+   - Detects Glide objective from user message
    - Captures raw Minutes
    - Invokes meeting room roles as Hermes subagents or structured prompts
    - Produces Plan + Architecture + Todos
 
-2. **Meeting Room Roles** — `skills/glideloop-cto/roles/*.md`
+2. **Meeting Room Roles** — `skills/glide-cto/roles/*.md`
    - 10 role personality files
    - Each role has mandate, constraints, output schema, perspective
 
-3. **Drift Detection** — `skills/glideloop-cto/scripts/drift.py`
+3. **Drift Detection** — `skills/glide-cto/scripts/drift.py`
    - Compares current proposal to original Minutes
    - Returns drift score 0-1
    - Triggers realignment if > threshold
 
-4. **Minutes Format** — `skills/glideloop-cto/templates/minutes.md`
+4. **Minutes Format** — `skills/glide-cto/templates/minutes.md`
    - Locked schema for meeting minutes
    - Append-only audit trail
 
@@ -56,33 +56,33 @@ Build in vertical slices. Each slice produces a runnable artifact. No big-bang i
 **Goal:** external process that can spawn/manage agents, but no real agents yet.
 
 ### Tickets
-1. **Package Structure** — `runtime/glideloop_orchestrator/`
+1. **Package Structure** — `runtime/glide_orchestrator/`
    - `__init__.py`, `main.py`, `config.py`, `state.py`
 
-2. **SQLite State** — `runtime/glideloop_orchestrator/state.py`
+2. **SQLite State** — `runtime/glide_orchestrator/state.py`
    - Initialize `sessions`, `agents`, `jobs`, `events` tables
    - WAL mode, busy timeout, `INSERT OR REPLACE`
 
-3. **Process Manager** — `runtime/glideloop_orchestrator/processes.py`
+3. **Process Manager** — `runtime/glide_orchestrator/processes.py`
    - `subprocess.Popen` with scoped `cwd`, env allowlist, process groups
    - In-memory registry + on-disk manifest
 
 4. **MCP Server Stub** — `runtime/mcp/server.py`
    - 10 tool stubs returning static responses
-   - `glideloop_status`, `glideloop_run`, `glideloop_stop`, etc.
+   - `glide_status`, `glide_run`, `glide_stop`, etc.
    - Hermes wiring in `~/.hermes/config.yaml`
 
-5. **Session Scaffold** — `runtime/glideloop_orchestrator/session.py`
+5. **Session Scaffold** — `runtime/glide_orchestrator/session.py`
    - Create/stop/pause session
    - Session directory layout under `runtime/workspace/`
 
 6. **Smoke Test** — start session, verify directories, verify SQLite, stop session
 
 ### Success Criteria
-- `glideloop_run` creates session with directories + SQLite rows
-- `glideloop_status` returns active session
-- `glideloop_stop` kills process group cleanly
-- MCP server passes `hermes mcp test glideloop`
+- `glide_run` creates session with directories + SQLite rows
+- `glide_status` returns active session
+- `glide_stop` kills process group cleanly
+- MCP server passes `hermes mcp test glide`
 
 ---
 
@@ -226,7 +226,7 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
 ### Tickets
 1. **Observability Counters** — `runtime/observability/counters.py`
    - Track sessions started, todos created, loop B hints injected, loop A promotions
-   - Expose via `glideloop_status`
+   - Expose via `glide_status`
 
 2. **Retry Budgets** — `runtime/agents/runner.py`
    - Configurable retry count + backoff for transient subprocess failures
@@ -236,11 +236,11 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
    - JSON logs for all MCP tool calls, session transitions, loop interventions
    - Rotate daily, keep 7 days
 
-4. **Systemd Timer** — `~/.config/systemd/user/glideloop-loop-a.{service,timer}`
+4. **Systemd Timer** — `~/.config/systemd/user/glide-loop-a.{service,timer}`
    - Weekly trigger for Loop A observer/validator/promoter
    - Logs to journal with `StandardOutput=journal`
 
-5. **Smoke Test** — verify `glideloop_status` returns counters, verify timer unit syntax
+5. **Smoke Test** — verify `glide_status` returns counters, verify timer unit syntax
 
 ---
 
@@ -250,11 +250,11 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
 
 ### Tickets
 1. **Real MCP Tools** — `runtime/mcp/server.py`
-   - `glideloop_run` creates a session and seeds todos
-   - `glideloop_todos` lists/creates via registry
-   - `glideloop_stop` stops active session process
-   - `glideloop_meeting` runs meeting room roles
-   - `glideloop_quality` runs quality gates
+   - `glide_run` creates a session and seeds todos
+   - `glide_todos` lists/creates via registry
+   - `glide_stop` stops active session process
+   - `glide_meeting` runs meeting room roles
+   - `glide_quality` runs quality gates
 
 2. **Test Suite** — `tests/`
    - `tests/test_teams.py`
@@ -273,7 +273,7 @@ Each phase produces a **verifiable artifact**. No phase starts until the previou
 
 ### Success Criteria
 - `pytest` passes with >20 tests
-- `glideloop_run` creates todos in SQLite
+- `glide_run` creates todos in SQLite
 - Loop B injects hint for stuck agent within 1 scan
 - Loop A promotes candidate without regression
 

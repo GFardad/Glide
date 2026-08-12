@@ -1,10 +1,10 @@
-# Glideloop Loop A — System Self-Improvement
+# Glide Loop A — System Self-Improvement
 
 ## Status
 Proposed — full design for weekly system self-improvement.
 
 ## Core Purpose
-Loop A is a **weekly system architect** for Glideloop itself. It improves prompts, strategies, routing rules, personality files, and workflow logic. It has strict safety gates and never mutates live system config without validation.
+Loop A is a **weekly system architect** for Glide itself. It improves prompts, strategies, routing rules, personality files, and workflow logic. It has strict safety gates and never mutates live system config without validation.
 
 ---
 
@@ -72,7 +72,7 @@ Meta-Agent (Loop A)
 - After user feedback indicates systematic quality issue
 
 ### 3.3 Manual Trigger
-- CTO can trigger Loop A via `glideloop_meta_status` tool
+- CTO can trigger Loop A via `glide_meta_status` tool
 - CTO can specify which component to focus on
 
 ---
@@ -80,7 +80,7 @@ Meta-Agent (Loop A)
 ## 4. Artifact Store
 
 ```
-/glideloop/meta/loop-a/
+/glide/meta/loop-a/
 ├── stable/
 │   ├── prompts/
 │   │   ├── engineer-v1.md
@@ -222,7 +222,7 @@ def promote_candidate(candidate_path: str, artifact_id: str):
 
 ### 7.1 Experience Replay Buffer
 ```
-/glideloop/meta/loop-a/experience/
+/glide/meta/loop-a/experience/
 ├── trajectories/
 │   └── <session_id>_<timestamp>.jsonl
 └── reflections/

@@ -1,4 +1,4 @@
-# Glideloop Todo Registry Schema
+# Glide Todo Registry Schema
 
 ## Status
 Proposed — SQLite schema + embedding strategy for the Todo Registry Agent.
@@ -66,7 +66,7 @@ CREATE TABLE agents (
     FOREIGN KEY (session_id) REFERENCES sessions(id)
 );
 
--- Sessions: every Glideloop session
+-- Sessions: every Glide session
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     objective TEXT NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 -- Option B: Separate Chroma/Weaviate collection
--- Collection: glideloop_todos
+-- Collection: glide_todos
 -- Metadata: session_id, agent_id, status, priority, created_at
 ```
 

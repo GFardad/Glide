@@ -1,14 +1,14 @@
-# Glideloop — Two Self-Improvement Loops
+# Glide — Two Self-Improvement Loops
 
 ## Status
 Proposed — part of deep planning phase.
 
 ## Core Principle
-Glideloop has **two separate self-improvement loops** with different purposes, cadences, and safety gates. Mixing them causes unsafe mutations.
+Glide has **two separate self-improvement loops** with different purposes, cadences, and safety gates. Mixing them causes unsafe mutations.
 
 ---
 
-## Loop A: System Self-Improvement (Glideloop improves itself)
+## Loop A: System Self-Improvement (Glide improves itself)
 
 ### Purpose
 Improve the system's own prompts, strategies, routing rules, personality files, and workflow logic.
@@ -110,4 +110,4 @@ Runtime Improver (Loop B)
 - Loop A runs as a separate process with its own state directory
 - Loop B runs inside the Orchestrator with read-only access to Loop A artifacts
 - Both loops write to the same event stream but with different event types
-- All improvements are logged in `/glideloop/meta/` with full audit trail
+- All improvements are logged in `/glide/meta/` with full audit trail

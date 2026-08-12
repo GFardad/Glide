@@ -1,4 +1,4 @@
-# Glideloop Agent File Contract
+# Glide Agent File Contract
 
 ## Status
 Proposed — part of deep planning phase.
@@ -69,7 +69,7 @@ PROPOSED → REGISTRY_CHECK → (DUPLICATE → MERGE/REJECT) → (NOVEL → PRIO
 ## Directory Structure Example
 
 ```
-/glideloop/agents/<agent_id>/
+/glide/agents/<agent_id>/
 ├── PERSONALITY.md
 ├── GOAL.md
 ├── NOTES.md

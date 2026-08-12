@@ -1,12 +1,12 @@
-# Glideloop MCP Architecture (Best-Practices Refinement)
+# Glide MCP Architecture (Best-Practices Refinement)
 
 ## Status
 Proposed — refined based on research findings.
 
 ## Topology
-- **External harness** lives outside `~/.hermes/` (e.g., `~/.glideloop/`)
-- Hermes talks to Glideloop only via **one MCP stdio server**
-- Glideloop manages external agent processes itself; it does **not** shell out to `hermes delegate_task` from the MCP server
+- **External harness** lives outside `~/.hermes/` (e.g., `~/.glide/`)
+- Hermes talks to Glide only via **one MCP stdio server**
+- Glide manages external agent processes itself; it does **not** shell out to `hermes delegate_task` from the MCP server
 
 ## MCP Server Surface
 
@@ -22,9 +22,9 @@ Proposed — refined based on research findings.
 | `agent_artifacts(agent_id)` | Read agent files | GOAL.md, TODO.md, NOTES.md, REJECTED.md |
 
 ### Resources
-- `glideloop://agents/<agent_id>/artifacts/<file>` — read agent files
-- `glideloop://logs/<agent_id>/<date>` — bounded log segments
-- `glideloop://sessions/<session_id>/state` — session-scoped state
+- `glide://agents/<agent_id>/artifacts/<file>` — read agent files
+- `glide://logs/<agent_id>/<date>` — bounded log segments
+- `glide://sessions/<session_id>/state` — session-scoped state
 
 ## Process Spawning Best Practices
 - Use `subprocess.Popen` with:
@@ -35,7 +35,7 @@ Proposed — refined based on research findings.
 - Maintain an in-memory registry plus on-disk manifest for PID, status, ports, and paths
 
 ## State Persistence
-- Store state in a **durable SQLite DB** under `~/.glideloop/state/glideloop.sqlite`
+- Store state in a **durable SQLite DB** under `~/.glide/state/glide.sqlite`
 - Tables: `agents`, `jobs`, `events`
 - Use `INSERT OR REPLACE`, WAL mode, and bounded busy timeout
 
@@ -52,23 +52,23 @@ Proposed — refined based on research findings.
   - env allowlist
   - file permission scoping
   - separate process groups for signal delivery
-- Do not let Glideloop inherit arbitrary Hermes env vars; inject only required values explicitly
+- Do not let Glide inherit arbitrary Hermes env vars; inject only required values explicitly
 - Consider adding per-agent `timeout` and `max_memory` guard via `resource` limits if available
 
 ## Hermes Wiring
 ```yaml
 mcp_servers:
-  glideloop:
-    command: /home/gfardad/.glideloop/venv/bin/python
+  glide:
+    command: /home/gfardad/.glide/venv/bin/python
     args:
-      - /home/gfardad/.glideloop/mcp/server.py
+      - /home/gfardad/.glide/mcp/server.py
     enabled: true
     connect_timeout: 120
 ```
 
 ## Validation
 ```bash
-python3 -m py_compile /home/gfardad/.glideloop/mcp/server.py
-hermes mcp test glideloop
+python3 -m py_compile /home/gfardad/.glide/mcp/server.py
+hermes mcp test glide
 hermes mcp list
 ```

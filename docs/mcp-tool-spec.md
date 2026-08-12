@@ -1,10 +1,10 @@
-# Glideloop MCP Tool Interface Specification
+# Glide MCP Tool Interface Specification
 
 ## Status
-Proposed — exact tool surface for the external Glideloop MCP server.
+Proposed — exact tool surface for the external Glide MCP server.
 
 ## Principle
-Hermes talks to Glideloop through **one MCP stdio server**. The MCP server is the only entrypoint. All Glideloop internals (process spawning, state, routing) are hidden behind this interface.
+Hermes talks to Glide through **one MCP stdio server**. The MCP server is the only entrypoint. All Glide internals (process spawning, state, routing) are hidden behind this interface.
 
 ---
 
@@ -13,14 +13,14 @@ Hermes talks to Glideloop through **one MCP stdio server**. The MCP server is th
 ```yaml
 # ~/.hermes/config.yaml
 mcp_servers:
-  glideloop:
-    command: /home/gfardad/.glideloop/venv/bin/python
+  glide:
+    command: /home/gfardad/.glide/venv/bin/python
     args:
-      - /home/gfardad/.glideloop/mcp/server.py
+      - /home/gfardad/.glide/mcp/server.py
     env:
-      GLIDELOOP_STATE_DIR: /home/gfardad/.glideloop/state
-      GLIDELOOP_RUNTIME_DIR: /media/Storage/home-gfardad/projects/glideloop/runtime
-      GLIDELOOP_LOG_LEVEL: INFO
+      GLIDE_STATE_DIR: /home/gfardad/.glide/state
+      GLIDE_RUNTIME_DIR: /media/Storage/home-gfardad/projects/glide/runtime
+      GLIDE_LOG_LEVEL: INFO
     enabled: true
     connect_timeout: 120
 ```
@@ -34,7 +34,7 @@ mcp_servers:
 
 ## 2. Tools
 
-### 2.1 `glideloop_status`
+### 2.1 `glide_status`
 **Purpose:** Quick health check and active session inventory.
 
 **Input:**
@@ -65,8 +65,8 @@ mcp_servers:
 
 ---
 
-### 2.2 `glideloop_run`
-**Purpose:** Start a new Glideloop session for a user objective.
+### 2.2 `glide_run`
+**Purpose:** Start a new Glide session for a user objective.
 
 **Input:**
 ```json
@@ -91,9 +91,9 @@ mcp_servers:
     "total_rounds_expected": 3
   },
   "artifacts": {
-    "plan": "/glideloop/sessions/abc123/artifacts/plan.md",
-    "architecture": "/glideloop/sessions/abc123/artifacts/architecture.md",
-    "todos": "/glideloop/sessions/abc123/artifacts/todos.json"
+    "plan": "/glide/sessions/abc123/artifacts/plan.md",
+    "architecture": "/glide/sessions/abc123/artifacts/architecture.md",
+    "todos": "/glide/sessions/abc123/artifacts/todos.json"
   }
 }
 ```
@@ -107,7 +107,7 @@ mcp_servers:
 
 ---
 
-### 2.3 `glideloop_session_status`
+### 2.3 `glide_session_status`
 **Purpose:** Detailed status for a specific session.
 
 **Input:**
@@ -140,13 +140,13 @@ mcp_servers:
       "last_active": "2026-08-05T00:15:00Z"
     }
   ],
-  "logs_url": "glideloop://logs/abc123"
+  "logs_url": "glide://logs/abc123"
 }
 ```
 
 ---
 
-### 2.4 `glideloop_stop`
+### 2.4 `glide_stop`
 **Purpose:** Stop a running session gracefully.
 
 **Input:**
@@ -176,7 +176,7 @@ mcp_servers:
 
 ---
 
-### 2.5 `glideloop_brain`
+### 2.5 `glide_brain`
 **Purpose:** Retrieve the "brain" of a session — all planning artifacts, meeting minutes, and decisions.
 
 **Input:**
@@ -207,7 +207,7 @@ mcp_servers:
 
 ---
 
-### 2.6 `glideloop_agent_artifacts`
+### 2.6 `glide_agent_artifacts`
 **Purpose:** Read an agent's persistent files.
 
 **Input:**
@@ -235,7 +235,7 @@ mcp_servers:
 
 ---
 
-### 2.7 `glideloop_stream_logs`
+### 2.7 `glide_stream_logs`
 **Purpose:** Bounded log tail for an agent or session.
 
 **Input:**
@@ -268,7 +268,7 @@ mcp_servers:
 
 ---
 
-### 2.8 `glideloop_list_teams`
+### 2.8 `glide_list_teams`
 **Purpose:** List available teams and their activation status.
 
 **Input:**
@@ -294,7 +294,7 @@ mcp_servers:
 
 ---
 
-### 2.9 `glideloop_approve_plan`
+### 2.9 `glide_approve_plan`
 **Purpose:** User/CTO approves a meeting room plan.
 
 **Input:**
@@ -324,7 +324,7 @@ mcp_servers:
 
 ---
 
-### 2.10 `glideloop_meta_status`
+### 2.10 `glide_meta_status`
 **Purpose:** Status of the two self-improvement loops.
 
 **Input:**
@@ -354,16 +354,16 @@ mcp_servers:
 
 ## 3. Resources
 
-### 3.1 `glideloop://agents/<agent_id>/artifacts/<file>`
+### 3.1 `glide://agents/<agent_id>/artifacts/<file>`
 Read an agent's file. Files: `PERSONALITY.md`, `GOAL.md`, `NOTES.md`, `TODO.md`, `REJECTED.md`.
 
-### 3.2 `glideloop://logs/<session_id>/<agent_id>`
+### 3.2 `glide://logs/<session_id>/<agent_id>`
 Bounded log segments. Use `tail` and `since` query params.
 
-### 3.3 `glideloop://sessions/<session_id>/state`
+### 3.3 `glide://sessions/<session_id>/state`
 Session-scoped state JSON.
 
-### 3.4 `glideloop://meeting/<session_id>/minutes`
+### 3.4 `glide://meeting/<session_id>/minutes`
 Meeting minutes for a session.
 
 ---
@@ -385,8 +385,8 @@ Meeting minutes for a session.
 
 | Tool | Limit | Window |
 |------|-------|--------|
-| `glideloop_stream_logs` | 60 calls | 1 minute |
-| `glideloop_agent_artifacts` | 120 calls | 1 minute |
+| `glide_stream_logs` | 60 calls | 1 minute |
+| `glide_agent_artifacts` | 120 calls | 1 minute |
 | All other tools | 30 calls | 1 minute |
 
 ---
@@ -395,10 +395,10 @@ Meeting minutes for a session.
 
 ```bash
 # Syntax check
-python3 -m py_compile /home/gfardad/.glideloop/mcp/server.py
+python3 -m py_compile /home/gfardad/.glide/mcp/server.py
 
 # Tool smoke test
-hermes mcp test glideloop --tool glideloop_status
+hermes mcp test glide --tool glide_status
 
 # List registered tools
 hermes mcp list

@@ -1,4 +1,4 @@
-# Glideloop Meeting Room — Personality-Driven Architecture
+# Glide Meeting Room — Personality-Driven Architecture
 
 ## Status
 Proposed — awaiting CTO review.
@@ -29,7 +29,7 @@ The CTO does not design alone. Before any plan reaches the Orchestrator, it goes
 6. **Consensus**: if all roles approve, plan is locked and sent to Orchestrator
 
 ## Personality Format
-Each role is defined in `/glideloop/meeting-room/roles/<role>.md`:
+Each role is defined in `/glide/meeting-room/roles/<role>.md`:
 ```
 # Role: <Name>
 
@@ -53,7 +53,7 @@ Each role is defined in `/glideloop/meeting-room/roles/<role>.md`:
 - All additions/deletions are logged with rationale in Minutes
 
 ## Minutes Format
-All decisions, revisions, and rationales are appended to `/glideloop/meeting-room/minutes/<timestamp>_<cluster_id>.md`:
+All decisions, revisions, and rationales are appended to `/glide/meeting-room/minutes/<timestamp>_<cluster_id>.md`:
 ```
 # Meeting Minutes: <Cluster ID>
 ## Date: <ISO timestamp>

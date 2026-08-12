@@ -1,4 +1,4 @@
-# Glideloop Meeting Minutes Template
+# Glide Meeting Minutes Template
 
 ## Status
 Locked — append-only audit trail format.

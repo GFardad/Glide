@@ -1,4 +1,4 @@
-# Glideloop — Parallel Scalability Design
+# Glide — Parallel Scalability Design
 
 ## Status
 Proposed — part of deep planning phase.
@@ -18,7 +18,7 @@ Everything must be scalable as parallel tests (different sessions, different con
 ### Session Model
 ```
 session_id = hash(objective + timestamp + user_id)
-├── /glideloop/sessions/<session_id>/
+├── /glide/sessions/<session_id>/
 │   ├── state.json          # session-level state
 │   ├── meeting/
 │   │   └── minutes.md      # meeting room output

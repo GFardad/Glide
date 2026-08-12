@@ -1,6 +1,6 @@
 # MCP Tooling Engineer
 ## Mandate
-Hermes-Glideloop interface contract, tool semantics, error codes.
+Hermes-Glide interface contract, tool semantics, error codes.
 ## Constraints
 - Hermes must never need to know internal runtime details
 - All errors must be actionable

@@ -1,7 +1,7 @@
-# Glideloop — Deep Planning Document
+# Glide — Deep Planning Document
 
 ## Executive Summary
-Glideloop is a **dynamic multi-agent office system** where you talk to one CTO agent in Hermes, and it runs a personality-driven meeting room that produces real execution through an external orchestrator. Every agent gets persistent `.md` artifacts. Todos flow through a RAG registry that deduplicates and routes work. Two separate meta-loops improve the system itself and runtime outputs over time.
+Glide is a **dynamic multi-agent office system** where you talk to one CTO agent in Hermes, and it runs a personality-driven meeting room that produces real execution through an external orchestrator. Every agent gets persistent `.md` artifacts. Todos flow through a RAG registry that deduplicates and routes work. Two separate meta-loops improve the system itself and runtime outputs over time.
 
 **This is a planning document, not implementation.** All architecture decisions are recorded here before any code is written.
 
@@ -18,7 +18,7 @@ We ran 7 parallel research agents on:
 6. Meta-learning → two-timescale evolution, held-out gating, versioned artifacts
 7. Context isolation → cluster-scoped contexts, deterministic IDs, progressive summarization
 
-Full reports saved in `/home/gfardad/glideloop-*.md`.
+Full reports saved in `/home/gfardad/glide-*.md`.
 
 ---
 
@@ -30,14 +30,14 @@ User <-> Hermes CTO Skill <-> CTO Assistant + Meeting Room
                                        |
                                Approved Plan
                                        |
-                        Glideloop Orchestrator (external)
+                        Glide Orchestrator (external)
                         /       |       \       \
                   Team A    Team B    Team C   ... (up to 20)
                   /    \     /    \     /    \
                Agent  Agent ... (5 per team, 5 subagents each)
 ```
 
-**Key**: The CTO Skill + Meeting Room are **part of the Glideloop Orchestrator**, not separate. They are the **top planning layer**. The Orchestrator includes:
+**Key**: The CTO Skill + Meeting Room are **part of the Glide Orchestrator**, not separate. They are the **top planning layer**. The Orchestrator includes:
 - Planning/Architecture layer (CTO + Meeting Room)
 - Execution layer (Teams + Agents + Subagents)
 - Registry layer (Todo RAG + Dedup)
@@ -46,12 +46,12 @@ User <-> Hermes CTO Skill <-> CTO Assistant + Meeting Room
 ### 2.2 Key Decisions
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Current loop | Side-by-side | Keep `mythus5-intelligent-loop.service` running; Glideloop is separate |
+| Current loop | Side-by-side | Keep `mythus5-intelligent-loop.service` running; Glide is separate |
 | Teams | Fixed roster, dynamic activation | 12 predefined teams, activate 2-10 per objective |
 | State format | SQLite + JSONL | SQLite for registry queries; JSONL for append-only event stream |
-| Execution | Plans + controlled execution | Orchestrator can write files and run commands in `/glideloop/runtime/workspace/` |
+| Execution | Plans + controlled execution | Orchestrator can write files and run commands in `/glide/runtime/workspace/` |
 | Approval | Hybrid gates | Routine auto-route; architectural changes require CTO confirmation |
-| Self-improvement | Two separate loops | Loop A: improve Glideloop itself. Loop B: runtime output improvement for user tasks |
+| Self-improvement | Two separate loops | Loop A: improve Glide itself. Loop B: runtime output improvement for user tasks |
 | Parallelism | Session-isolated, context-isolated | Different sessions, different contexts, same quality or better |
 
 ### 2.3 Agent File Contract (Non-negotiable)
@@ -130,7 +130,7 @@ All three are produced together, reviewed together, and approved together.
 - All additions/deletions are logged with rationale in Minutes
 
 ### 5.4 Personality Format
-Each role is defined in `/glideloop/meeting-room/roles/<role>.md`:
+Each role is defined in `/glide/meeting-room/roles/<role>.md`:
 ```
 # Role: <Name>
 ## Mandate
@@ -171,7 +171,7 @@ See `docs/adr-001-context-isolation.md` for full details.
 
 ## 7. Self-Improvement Loops (Two Separate Loops)
 
-### 7.1 Loop A: System Self-Improvement (Glideloop improves itself)
+### 7.1 Loop A: System Self-Improvement (Glide improves itself)
 - **Purpose**: improve prompts, strategies, routing rules, personality files
 - **Cadence**: weekly (slow timescale)
 - **Scope**: operational config, workflow logic, agent prompts, team definitions
@@ -200,9 +200,9 @@ See `docs/self-improvement-loops.md` for full design.
 ## 8. MCP Control Plane (Best-Practices Refinement)
 
 ### 8.1 Topology
-- **External harness** lives outside `~/.hermes/` (e.g., `~/.glideloop/`)
-- Hermes talks to Glideloop only via **one MCP stdio server**
-- Glideloop manages external agent processes itself; it does **not** shell out to `hermes delegate_task` from the MCP server
+- **External harness** lives outside `~/.hermes/` (e.g., `~/.glide/`)
+- Hermes talks to Glide only via **one MCP stdio server**
+- Glide manages external agent processes itself; it does **not** shell out to `hermes delegate_task` from the MCP server
 
 ### 8.2 Process Spawning
 - Use `subprocess.Popen` with:
@@ -213,7 +213,7 @@ See `docs/self-improvement-loops.md` for full design.
 - Maintain an in-memory registry plus on-disk manifest for PID, status, ports, and paths
 
 ### 8.3 State Persistence
-- Store state in a **durable SQLite DB** under `~/.glideloop/state/glideloop.sqlite`
+- Store state in a **durable SQLite DB** under `~/.glide/state/glide.sqlite`
 - Tables: `agents`, `jobs`, `events`
 - Use `INSERT OR REPLACE`, WAL mode, and bounded busy timeout
 
@@ -230,7 +230,7 @@ See `docs/self-improvement-loops.md` for full design.
   - env allowlist
   - file permission scoping
   - separate process groups for signal delivery
-- Do not let Glideloop inherit arbitrary Hermes env vars; inject only required values explicitly
+- Do not let Glide inherit arbitrary Hermes env vars; inject only required values explicitly
 
 See `docs/mcp-architecture.md` for full design.
 
@@ -292,15 +292,15 @@ Every todo creation goes through the registry agent first. No agent creates todo
 | 2 | First prototype | **A) Meeting room + CTO skill** (brainstorm → plan → present) |
 | 3 | Team naming | Keep the 12 names defined above |
 | 4 | Approval strictness | **Hybrid** — routine auto-route; architectural changes require CTO confirmation |
-| 5 | Persistence location | **`/media/Storage/home-gfardad/projects/glideloop/`** for now; design for `~/.glideloop/` migration later |
+| 5 | Persistence location | **`/media/Storage/home-gfardad/projects/glide/`** for now; design for `~/.glide/` migration later |
 
 ---
 
 ## 12. Next Steps (No Code Yet)
 
-1. **Lock ADRs** in `/glideloop/docs/`
+1. **Lock ADRs** in `/glide/docs/`
 2. **Define exact schemas** for PERSONALITY.md, GOAL.md, NOTES.md, TODO.md, REJECTED.md, Minutes
-3. **Spec the MCP tool interface** (`glideloop_mcp.py`) with best-practice isolation
+3. **Spec the MCP tool interface** (`glide_mcp.py`) with best-practice isolation
 4. **Prototype the CTO skill** (Hermes side only, no execution)
 5. **Design the Todo Registry schema** (SQLite + embedding strategy)
 6. **Design the two self-improvement loops** in detail

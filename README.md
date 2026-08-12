@@ -1,10 +1,10 @@
-# Glideloop — Dynamic Multi-Agent Office System
+# Glide — Dynamic Multi-Agent Office System
 
 ## Status
 Executable MVP published to GitHub. Tests passing. Dev/production runtime wired.
 
 ## Core Concept
-Glideloop is a self-organizing multi-agent office where:
+Glide is a self-organizing multi-agent office where:
 - The user talks to a CTO agent inside Hermes
 - The CTO runs a "meeting room" with personality-driven roles
 - An Orchestrator breaks approved plans into teams/agents
@@ -26,7 +26,7 @@ Glideloop is a self-organizing multi-agent office where:
 
 ## Directory Layout
 ```
-/glideloop
+/glide
 /docs/           # Architecture, ADRs, specs
 /plans/          # Current and historical plans
 /meeting-room/   # CTO + personalities + minutes
@@ -62,7 +62,7 @@ bash scripts/promote_release.sh
 ```
 
 ## Remote
-GitHub: https://github.com/GFardad/glideloop
+GitHub: https://github.com/GFardad/glide
 Branches: `main` (production), `dev` (development)
 
 ## Phase Status

@@ -1,4 +1,4 @@
-# ADR: Context Isolation Strategy for Glideloop
+# ADR: Context Isolation Strategy for Glide
 
 ## Status
 Proposed — awaiting CTO review and research agent findings.

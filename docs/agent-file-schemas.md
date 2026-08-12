@@ -1,4 +1,4 @@
-# Glideloop Agent File Schemas
+# Glide Agent File Schemas
 
 ## Status
 Locked — exact formats for all required agent files.
@@ -246,7 +246,7 @@ mobile support can use refresh tokens instead.
 ## 6. Directory Structure
 
 ```
-/glideloop/sessions/<session_id>/agents/<agent_id>/
+/glide/sessions/<session_id>/agents/<agent_id>/
 ├── PERSONALITY.md
 ├── GOAL.md
 ├── NOTES.md
