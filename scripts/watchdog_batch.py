@@ -63,7 +63,7 @@ def _check_single_agent(session_id: str, root: Path) -> dict[str, Any]:
     created_at = None
     if goal.exists():
         try:
-            created_at = goal.read_text(encoding="utf-8").splitlines()[0].split("\n")[0]
+            created_at = goal.read_text(encoding="utf-8").splitlines()[0]
         except Exception:
             pass
     if notes.exists():
