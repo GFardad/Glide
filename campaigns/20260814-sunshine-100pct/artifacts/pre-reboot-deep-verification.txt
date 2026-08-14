@@ -1,0 +1,117 @@
+=== DEEP PRE-REBOOT VERIFICATION ===
+Date: 2026-08-14T00:55:46Z
+
+--- 1. EDID firmware validity ---
+Block 0, Base EDID:
+    Manufacturer: CHD
+    DMT 0x52:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz
+    DTD 1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (490 mm x 270 mm)
+  Extension blocks: 1
+Checksum: 0xff
+    VIC  16:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz
+    VIC  31:  1920x1080   50.000000 Hz  16:9     56.250 kHz    148.500000 MHz
+    DTD 2:  1920x1080   50.020202 Hz  16:9     56.273 kHz    123.800000 MHz (597 mm x 336 mm)
+Checksum: 0x5c  Unused space in Extension Block: 75 bytes
+
+--- 2. EDID includes 1920x1080@60 detailed timing ---
+    DTD 1:  1920x1080   60.000000 Hz  16:9     67.500 kHz    148.500000 MHz (490 mm x 270 mm)
+                 Hfront   88 Hsync  44 Hback  148 Hpol P
+                 Vfront    3 Vsync   5 Vback   37 Vpol P
+
+--- 3. GRUB cmdline EDID params ---
+drm.edid_firmware=HDMI-A-4:edid/sunshine-1080p60.bin
+video=HDMI-A-4:e
+
+--- 4. GRUB default config ---
+GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 irqpoll nvidia-drm.modeset=1 nvidia-drm.fbdev=1 pcie_aspm=off splash nvidia.NVreg_EnableGpuFirmware=0 quiet drm.edid_firmware=HDMI-A-4:edid/sunshine-1080p60.bin video=HDMI-A-4:e"
+
+--- 5. mkinitcpio FILES ---
+FILES=(/usr/lib/firmware/edid/sunshine-1080p60.bin)
+
+--- 6. initramfs vs vmlinuz timestamps ---
+-rw------- 1 root root 137971334 Aug 14 04:24 /boot/initramfs-linux.img
+-rw-r--r-- 1 root root  17101312 Aug 12 22:32 /boot/vmlinuz-linux
+
+--- 7. grub.cfg active kernel line ---
+117:	linux	/@/boot/vmlinuz-linux root=UUID=ddd0397a-a9e9-420d-9df0-fdc9773f14bf rw rootflags=subvol=@  loglevel=3 irqpoll nvidia-drm.modeset=1 nvidia-drm.fbdev=1 pcie_aspm=off splash nvidia.NVreg_EnableGpuFirmware=0 quiet drm.edid_firmware=HDMI-A-4:edid/sunshine-1080p60.bin video=HDMI-A-4:e
+130:		linux	/@/boot/vmlinuz-linux root=UUID=ddd0397a-a9e9-420d-9df0-fdc9773f14bf rw rootflags=subvol=@  loglevel=3 irqpoll nvidia-drm.modeset=1 nvidia-drm.fbdev=1 pcie_aspm=off splash nvidia.NVreg_EnableGpuFirmware=0 quiet drm.edid_firmware=HDMI-A-4:edid/sunshine-1080p60.bin video=HDMI-A-4:e
+
+--- 8. sunshine.conf output_name ---
+5:output_name = HDMI-A-4
+
+--- 9. apps.json Virtual Desktop preset ---
+      "name": "Virtual Desktop (HDMI-A-4)",
+      "image-path": "desktop.png",
+      "prep-cmd": [
+        {
+          "do": "hyprctl keyword monitor DP-2,disable && hyprctl keyword monitor HDMI-A-5,disable && hyprctl keyword monitor DP-3,disable && hyprctl keyword monitor HDMI-A-4,1920x1080@60.0,0x0,1.0",
+          "undo": "hyprctl keyword monitor HDMI-A-4,disable && hyprctl keyword monitor DP-2,3840x2160@240.02,2192x0,1.0,bitdepth,10 && hyprctl keyword monitor HDMI-A-5,1920x1080@60.0,272x1080,1.0,bitdepth,10 && hyprctl keyword monitor DP-3,1920x1080@75.0,6032x1080,1.0,bitdepth,10"
+
+--- 10. apps.json no mirror preset ---
+PASS: no mirror preset
+
+--- 11. enforcer script content ---
+#!/bin/bash
+set -euo pipefail
+
+CONFIG="/home/gfardad/.config/sunshine/sunshine.conf"
+TARGET="HDMI-A-4"
+
+# Always force virtual monitor target - never fall back to physical displays
+CURRENT=$(grep '^output_name = ' "$CONFIG" | cut -d= -f2 | tr -d ' ' || echo "")
+
+if [ "$CURRENT" != "$TARGET" ]; then
+    sed -i "s/^output_name = .*/output_name = $TARGET/" "$CONFIG"
+    if systemctl --user is-active --quiet sunshine.service; then
+        systemctl --user restart sunshine.service
+    fi
+fi
+
+--- 12. enforcer timer active ---
+active
+
+--- 13. enforcer service unit ---
+[Unit]
+Description=Sunshine output_name enforcer for virtual display
+After=graphical-session.target hyprland.service
+
+[Service]
+Type=oneshot
+User=gfardad
+ExecStart=/usr/local/bin/sunshine-monitor-enforcer.sh
+
+--- 14. sunshine.service Wayland env ---
+[Unit]
+Description=Sunshine Game Streaming Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sunshine-wrapper
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:1
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+LimitNOFILE=65536
+
+[Install]
+WantedBy=default.target
+
+--- 15. sunshine.service enabled ---
+enabled
+
+--- 16. HDMI-A-4 status ---
+connected
+
+--- 17. HDMI-A-4 modes ---
+1024x768
+800x600
+800x600
+800x600
+640x480
+
+--- 18. No duplicate sunshine configs ---
+/home/gfardad/.config/sunshine/apps.json
+/home/gfardad/.config/sunshine/sunshine.conf
