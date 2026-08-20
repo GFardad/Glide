@@ -73,6 +73,18 @@ function keywordSignals(objective: string, role: string): string[] {
       "value",
       "deliverable",
     ],
+    CEO: [
+      "ceo",
+      "executive",
+      "strategy",
+      "board",
+      "investor",
+      "growth",
+      "monitor",
+      "dashboard",
+      "system health",
+      "status",
+    ],
   };
   const hintTerms = roleSignals[role] ?? [];
   return unique.filter((token) =>
@@ -109,6 +121,8 @@ function buildRisks(role: string, objective: string): string[] {
     risks.push("interface contract drift", "circular package dependency");
   if (role === "Product")
     risks.push("scope creep", "missing user value justification");
+  if (role === "CEO")
+    risks.push("visibility gaps", "executive blind spots");
   return risks;
 }
 
@@ -133,6 +147,11 @@ function buildImprovements(role: string, objective: string): string[] {
     Product: [
       "Write acceptance criteria for Headroom outputs.",
       "Map user tasks to MCP tool surface.",
+    ],
+    CEO: [
+      "Review executive alignment and dashboard coverage.",
+      "Add CEO acceptance criteria for system health.",
+      "Monitor graphify and gate health from one pane.",
     ],
   };
   const selected = improvements[role] ?? [
@@ -164,6 +183,7 @@ function buildTodos(role: string, objective: string): string[] {
       "Add MCP stdio smoke test",
     ],
     Product: ["Draft acceptance criteria", "Validate tool naming convention"],
+    CEO: ["Review executive dashboard", "Add CEO acceptance criteria"],
   };
   return todos[role] ?? ["Review objective", "Add task breakdown"];
 }

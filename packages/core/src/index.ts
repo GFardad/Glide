@@ -11,3 +11,4 @@ export * from "./security/command-guard.js";
 export * from "./fs/agent-fs.js";
 export * from "./fs/campaign-fs.js";
 export * from "./fs/schemas.js";
+export * from "./plugin-api/index.js";

@@ -74,6 +74,10 @@ const DEFAULT_ALLOWED_ARGUMENTS = new Set([
   "--no-color",
   "--silent",
   "--fail",
+  "--noEmit",
+  "--pretty",
+  "false",
+  "--no-cache",
 ]);
 
 export function sanitizeWorkspacePath(candidate: string, allowedRoots: string[]): string {

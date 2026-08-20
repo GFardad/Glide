@@ -46,7 +46,7 @@ function writeAgent(workspace: string, agentId: string, parent = "none") {
 }
 
 describe("tools barrel", () => {
-  it("exports all 14 tools", () => {
+  it("exports all 15 tools", () => {
     const names = Object.keys(toolsIndex).sort();
     expect(names).toContain("glideStatusTool");
     expect(names).toContain("glideGoalSetTool");
@@ -62,6 +62,7 @@ describe("tools barrel", () => {
     expect(names).toContain("glideTestTool");
     expect(names).toContain("glideReviewTool");
     expect(names).toContain("glideShipTool");
+    expect(names).toContain("glideWebSearchTool");
   });
 });
 
