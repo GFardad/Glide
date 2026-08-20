@@ -8,6 +8,8 @@ export const glideDashboardTool: GlideTool = {
   name: "glide_dashboard",
   description:
     "CEO dashboard: aggregate Glide system health from status, graph, headroom, and gates into one view.",
+  allowedRoles: ["CEO", "Architect", "Product"],
+  requiredScopes: ["dashboard", "status", "graph"],
   inputSchema: {
     type: "object",
     properties: {
@@ -47,16 +49,17 @@ export const glideDashboardTool: GlideTool = {
       try {
         const client = new GraphifyClient({ projectPath });
         const graph = client.read();
+        const normalizedCommunities = Array.from(
+          new Set(
+            graph.nodes
+              .map((node) => node.community)
+              .filter((community): community is number => typeof community === "number")
+          )
+        ).sort((a, b) => a - b);
         status.graphify = {
           node_count: graph.nodes.length,
           edge_count: graph.links.length,
-          communities: Array.from(
-            new Set(
-              graph.nodes
-                .map((n) => n.community)
-                .filter((c): c is number => typeof c === "number")
-            )
-          ).sort((a, b) => a - b),
+          communities: normalizedCommunities,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -13,4 +13,6 @@ export interface GlideTool {
     required?: string[];
   };
   handler: GlideToolHandler;
+  allowedRoles?: string[];
+  requiredScopes?: string[];
 }
