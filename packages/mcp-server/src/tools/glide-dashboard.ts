@@ -17,6 +17,7 @@ export const glideDashboardTool: GlideTool = {
       campaign_dir: { type: "string" },
       objective: { type: "string" },
       roles: { type: "array", items: { type: "string" } },
+      subject_role: { type: "string" },
     },
     required: ["project_path"],
   },

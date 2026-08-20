@@ -4,11 +4,14 @@ import { GlideTool } from "./types.js";
 export const glideWebSearchTool: GlideTool = {
   name: "glide_web_search",
   description: "Search the web and return ranked results with title, url, and snippet.",
+  allowedRoles: ["CEO", "Architect", "Engineer", "Product", "Security", "QA", "agent"],
+  requiredScopes: ["web_search"],
   inputSchema: {
     type: "object",
     properties: {
       query: { type: "string" },
       limit: { type: "number", minimum: 1, maximum: 20 },
+      subject_role: { type: "string" },
     },
     required: ["query"],
   },

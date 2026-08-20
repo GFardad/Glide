@@ -92,8 +92,10 @@ function isToolAllowedForRole(tool: GlideTool, role?: string): boolean {
 
 function authorizeToolCall(tool: GlideTool, args: Record<string, unknown>): { ok: boolean; reason?: string } {
   const role = resolveRoleFromArgs(args);
-  if (!isToolAllowedForRole(tool, role)) {
-    return { ok: false, reason: `role_not_allowed: ${role ?? "unknown"}` };
+  if (tool.allowedRoles && tool.allowedRoles.length > 0) {
+    if (!isToolAllowedForRole(tool, role)) {
+      return { ok: false, reason: `role_not_allowed: ${role ?? "unknown"}` };
+    }
   }
 
   const action = tool.name;

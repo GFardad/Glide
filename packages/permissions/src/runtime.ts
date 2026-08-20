@@ -22,7 +22,32 @@ export class PermissionRuntime {
   private readonly actionScopes: Map<string, string>;
 
   constructor(options: PermissionRuntimeOptions = {}) {
-    this.allowedActions = new Set(options.allowedActions ?? ["read", "write", "plan", "execute", "review"]);
+    this.allowedActions = new Set(options.allowedActions ?? [
+      "read",
+      "write",
+      "plan",
+      "execute",
+      "review",
+      "glide_status",
+      "glide_goal_set",
+      "glide_goal_get",
+      "glide_headroom",
+      "glide_executor",
+      "glide_tracer",
+      "glide_permissions",
+      "glide_indepth",
+      "glide_trace",
+      "glide_plan",
+      "glide_build",
+      "glide_test",
+      "glide_review",
+      "glide_ship",
+      "glide_web_search",
+      "glide_dashboard",
+      "glide_icm",
+      "glide_gates",
+      "glide_graph",
+    ]);
     this.actionScopes = options.actionScopes ?? new Map([
       ["read", "read"],
       ["write", "write"],

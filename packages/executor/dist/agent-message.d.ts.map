@@ -1,0 +1,1 @@
+{"version":3,"file":"agent-message.d.ts","sourceRoot":"","sources":["../src/agent-message.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,YAAY;IAC3B,IAAI,EAAE,QAAQ,GAAG,MAAM,GAAG,WAAW,GAAG,MAAM,GAAG,OAAO,CAAC;IACzD,OAAO,EAAE,MAAM,CAAC;IAChB,SAAS,EAAE,MAAM,CAAC;IAClB,QAAQ,CAAC,EAAE,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC,GAAG,SAAS,CAAC;CAC/C"}
