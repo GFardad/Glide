@@ -38,6 +38,8 @@ export const glideConvergeTool: GlideTool = {
     },
     required: ["campaign_dir"],
   },
+  allowedRoles: ["Architect", "QA"],
+  requiredScopes: ["converge", "plan"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaignDir = args["campaign_dir"];
     if (typeof campaignDir !== "string" || !campaignDir.trim()) {

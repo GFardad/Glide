@@ -1,7 +1,7 @@
 import type { PluginInstance } from "./types.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { atomicWriteFileSync } from "@glide/core";
+import { appendFile } from "node:fs/promises";
 
 export interface SessionDurabilityOptions {
   rootDir?: string;
@@ -146,7 +146,6 @@ export class PrimeAgentSessionDurability {
   }
 
   private async appendEvent(event: SessionDurabilityEvent): Promise<void> {
-    const { appendFile } = await import("node:fs/promises");
     await appendFile(this.eventFile, JSON.stringify(event) + "\n", "utf8");
   }
 }

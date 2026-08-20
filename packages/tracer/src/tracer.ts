@@ -1,9 +1,8 @@
 import { readFile, readdir, access } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { join } from "node:path";
 import { z } from "zod";
 import type { TraceEvent } from "./trace-runtime.js";
 import { TraceRuntime } from "./trace-runtime.js";
-import { createPathGuard } from "@glide/core";
 
 export interface AgentTrace {
   agentId: string;
@@ -30,11 +29,6 @@ export interface TraceCorrelation {
 
 const AgentIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
 const WorkspaceSchema = z.string().min(1).max(1024);
-
-const guardWorkspace = createPathGuard({
-  allowedRoots: [process.cwd(), "/tmp"],
-  requireExists: true,
-});
 
 const TracerRuntimeOptionsSchema = z.object({
   workspace: WorkspaceSchema,

@@ -33,6 +33,8 @@ export const glideReviewTool: GlideTool = {
     },
     required: ["campaign_dir", "decision"],
   },
+  allowedRoles: ["Product", "QA"],
+  requiredScopes: ["review", "approval"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaignDir = args["campaign_dir"];
     const reviewer = (args["reviewer"] as string | undefined) ?? "unknown";

@@ -31,6 +31,8 @@ export const glideExecutorTool: GlideTool = {
     },
     required: ["workspace", "agent_id", "action"],
   },
+  allowedRoles: ["Engineer", "Security"],
+  requiredScopes: ["executor", "runtime"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const workspace = args["workspace"];
     const agentId = args["agent_id"];

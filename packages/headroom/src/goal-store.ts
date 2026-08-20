@@ -1,7 +1,7 @@
-import { existsSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GoalRecord, GoalStatus } from "@glide/core";
-import { atomicWriteFileSync, atomicAppendFileSync } from "@glide/core";
+import { atomicAppendFileSync } from "@glide/core";
 
 export interface GoalStoreOptions {
   root: string;

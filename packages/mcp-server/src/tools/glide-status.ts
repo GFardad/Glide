@@ -11,6 +11,8 @@ export const glideStatusTool: GlideTool = {
       project_path: { type: "string" },
     },
   },
+  allowedRoles: ["CEO", "Architect"],
+  requiredScopes: ["status", "graphify"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const projectPath = args["project_path"] as string | undefined;
     const status: Record<string, unknown> = {

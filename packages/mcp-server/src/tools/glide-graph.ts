@@ -32,6 +32,8 @@ export const glideGraphTool: GlideTool = {
     },
     required: ["action", "project_path"],
   },
+  allowedRoles: ["Architect", "Engineer"],
+  requiredScopes: ["graph", "query"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const action = args["action"];
     const projectPath = args["project_path"];

@@ -33,6 +33,8 @@ export const glideBuildTool: GlideTool = {
     },
     required: ["campaign_dir"],
   },
+  allowedRoles: ["Engineer"],
+  requiredScopes: ["build"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaignDir = args["campaign_dir"];
     if (typeof campaignDir !== "string" || !campaignDir.trim()) {

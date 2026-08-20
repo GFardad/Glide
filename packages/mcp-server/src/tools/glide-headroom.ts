@@ -28,6 +28,8 @@ export const glideHeadroomTool: GlideTool = {
     },
     required: ["campaign_dir", "objective"],
   },
+  allowedRoles: ["CEO", "Product", "Architect"],
+  requiredScopes: ["headroom", "roles", "plan"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaign_dir = args["campaign_dir"];
     const objective = args["objective"];

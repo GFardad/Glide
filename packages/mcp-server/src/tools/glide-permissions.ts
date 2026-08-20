@@ -17,7 +17,9 @@ export const glidePermissionsTool: GlideTool = {
     },
     required: ["action", "resource", "subject_id", "subject_role"],
   },
-  handler: (args: Record<string, unknown>): CallToolResult => {
+  allowedRoles: ["Security", "Architect"],
+  requiredScopes: ["permissions", "auth"],
+  handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const action = args.action as string;
     const resource = args.resource as string;
     const subjectId = args.subject_id as string;

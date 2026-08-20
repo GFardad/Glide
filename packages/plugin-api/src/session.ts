@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SessionDurabilityOptions } from "./durability.js";
 import { atomicAppendFileSync } from "@glide/core";
@@ -196,7 +196,7 @@ export class SessionStore {
     const path = this.recordPath(handle);
     if (existsSync(path)) {
       try {
-        unlinkSync(path);
+        rmSync(path);
       } catch {
         // ignore cleanup errors
       }

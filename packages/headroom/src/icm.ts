@@ -109,7 +109,7 @@ export function runWalkTest(root: string): IcmCampaignResult["walkTest"] {
       continue;
     }
     try {
-      const content = readFileSync(path, "utf8");
+      readFileSync(path, "utf8");
       if (file.startsWith("state/")) {
         readableStateFiles.push(file);
       }
@@ -128,12 +128,10 @@ export function runWalkTest(root: string): IcmCampaignResult["walkTest"] {
     `Root: ${root}`,
     `Orientable: ${orientable}`,
     "",
-    "## Readable State Files",
     readableStateFiles.length
       ? readableStateFiles.map((file) => `- ${file}`).join("\n")
       : "- none",
     "",
-    "## Missing",
     missing.length ? missing.map((file) => `- ${file}`).join("\n") : "- none",
     "",
   ];

@@ -13,6 +13,8 @@ export const glideGoalSetTool: GlideTool = {
     },
     required: ["campaign_dir", "goal"],
   },
+  allowedRoles: ["Product", "Architect", "CEO"],
+  requiredScopes: ["campaign", "plan"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaign_dir = args["campaign_dir"];
     const goal = args["goal"];
@@ -46,6 +48,8 @@ export const glideGoalGetTool: GlideTool = {
     },
     required: ["campaign_dir"],
   },
+  allowedRoles: ["Product", "Architect", "CEO"],
+  requiredScopes: ["campaign", "plan"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaign_dir = args["campaign_dir"];
     if (typeof campaign_dir !== "string") {

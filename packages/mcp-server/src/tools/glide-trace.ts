@@ -14,6 +14,8 @@ export const glideTraceTool: GlideTool = {
     },
     required: ["workspace", "agent_id"],
   },
+  allowedRoles: ["Engineer", "QA"],
+  requiredScopes: ["trace", "debug"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const workspace = args["workspace"];
     const agentId = args["agent_id"];

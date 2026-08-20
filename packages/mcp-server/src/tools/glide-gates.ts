@@ -20,6 +20,8 @@ export const glideGatesTool: GlideTool = {
     },
     required: ["workspace"],
   },
+  allowedRoles: ["QA", "Security"],
+  requiredScopes: ["gates", "verify"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const workspace = args["workspace"];
     if (typeof workspace !== "string" || !workspace.trim()) {

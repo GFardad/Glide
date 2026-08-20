@@ -116,7 +116,7 @@ describe("core plugin-api manifest + loader", () => {
 
   it("rejects invalid manifests on registration", async () => {
     expect(() =>
-      registerPlugin({ root: tmpRoot }, { id: "", name: "bad", version: "1.0.0" } as any)
+      registerPlugin({ root: tmpRoot }, { id: "", name: "bad", version: "1.0.0" } as { id: string; name: string; version: string })
     ).toThrowError(/Invalid plugin manifest/);
     expect(listPlugins({ root: tmpRoot })).toEqual([]);
   });
@@ -129,7 +129,7 @@ describe("core plugin-api manifest + loader", () => {
       ],
     };
 
-    saveRegistry({ root: tmpRoot }, raw as any);
+    saveRegistry({ root: tmpRoot }, raw as { plugins: Array<{ id: string; name: string; version: string }> });
     expect(listPlugins({ root: tmpRoot })).toEqual([
       { id: "good", name: "Good", version: "1.0.0" },
     ]);

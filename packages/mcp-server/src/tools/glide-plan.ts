@@ -47,6 +47,8 @@ export const glidePlanTool: GlideTool = {
     },
     required: ["campaign_dir", "epic"],
   },
+  allowedRoles: ["Architect", "Product"],
+  requiredScopes: ["plan", "campaign"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaignDir = args["campaign_dir"];
     const epic = args["epic"];

@@ -33,6 +33,8 @@ export const glideShipTool: GlideTool = {
     },
     required: ["campaign_dir", "target"],
   },
+  allowedRoles: ["Product", "Engineer"],
+  requiredScopes: ["ship", "deploy"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const campaignDir = args["campaign_dir"];
     const target = args["target"];

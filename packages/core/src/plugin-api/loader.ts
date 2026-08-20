@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import type { MinimalPluginManifest, ManifestValidationResult } from "./manifest.js";
+import type { MinimalPluginManifest } from "./manifest.js";
 import { validatePluginManifest } from "./manifest.js";
 
 export interface PluginRegistry {

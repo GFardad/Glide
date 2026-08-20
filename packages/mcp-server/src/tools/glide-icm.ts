@@ -16,6 +16,8 @@ export const glideIcmTool: GlideTool = {
     },
     required: ["root", "action"],
   },
+  allowedRoles: ["Architect", "Product"],
+  requiredScopes: ["icm", "campaign"],
   handler: async (args: Record<string, unknown>): Promise<CallToolResult> => {
     const root = args.root as string;
     const action = args.action as string;

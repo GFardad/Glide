@@ -6,13 +6,11 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
 import { tools } from "./tools/index.js";
 import type { GlideTool } from "./tools/types.js";
 import { PermissionRuntime, createSubject } from "@glide/permissions";
 import {
   listPlugins,
-  resolveRegistryPath,
   type MinimalPluginManifest,
 } from "@glide/core";
 
@@ -110,7 +108,6 @@ function authorizeToolCall(tool: GlideTool, args: Record<string, unknown>): { ok
 }
 
 async function loadDynamicPlugins(root = DEFAULT_PROJECT_ROOT): Promise<GlideTool[]> {
-  const registryPath = resolveRegistryPath({ root, filename: "registry.json" });
   const plugins: MinimalPluginManifest[] = [];
   try {
     const entries = listPlugins({ root, filename: "registry.json" });
