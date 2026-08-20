@@ -16,3 +16,7 @@ node_modules
 packages/*/coverage
 snapshot
 todos.json
+
+# Build artifacts
+packages/*/dist/
+packages/*/tsconfig.tsbuildinfo

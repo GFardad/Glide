@@ -1,1 +1,0 @@
-{"root":["./src/converge.ts","./src/delta.ts","./src/goal-store.ts","./src/headroom.ts","./src/heartbeat.ts","./src/index.ts","./src/roles.ts","./src/runtime.ts","./src/sqlite.d.ts"],"version":"5.9.3"}
