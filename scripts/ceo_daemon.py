@@ -289,6 +289,12 @@ def inject_improvement_task(task_type: str, command: str, objective: str) -> Non
 
         store = StateStore(STATE_DIR)
         pending = store.get("worker", "pending") or []
+        # Recovery tasks are not cumulative: a fresh watchdog scan is authoritative
+        # and supersedes any prior session_recovery task, which may reference
+        # sessions that no longer exist. Drop stale ones so the current scan can
+        # take effect instead of being blocked by a phantom dedup match.
+        if task_type == "session_recovery":
+            pending = [t for t in pending if t.get("type") != "session_recovery"]
         if any(existing.get("type") == task_type for existing in pending):
             return
         if len(pending) >= 5:
