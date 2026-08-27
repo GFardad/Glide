@@ -76,6 +76,8 @@ def _check_single_agent(session_id: str, root: Path) -> dict[str, Any]:
         "age_seconds": 0.0,
         "log_gap_seconds": None,
         "status": "unknown",
+        "worker_pid": None,
+        "worker_alive": False,
     }
 
     if not workspace.exists():
@@ -90,7 +92,10 @@ def _check_single_agent(session_id: str, root: Path) -> dict[str, Any]:
 
     # Reuse the same creation-time resolution as the main watchdog so the
     # parallel batch and the single-scan never disagree on staleness.
-    from runtime.meta.watchdog.session_watchdog import resolve_session_created_at
+    from runtime.meta.watchdog.session_watchdog import (
+        resolve_session_created_at,
+        _pid_alive,
+    )
 
     created_at = resolve_session_created_at(workspace)
 
@@ -111,13 +116,23 @@ def _check_single_agent(session_id: str, root: Path) -> dict[str, Any]:
         db_path = root / "runtime" / "state" / "glideloop_orchestrator.sqlite"
         state = OrchestratorState(db_path=db_path)
         conn = state.connect()
-        row = conn.execute(
-            "SELECT status FROM sessions WHERE session_id = ?", (session_id,)
-        ).fetchone()
+        # Some schemas carry a worker pid column; older ones don't. Tolerate both.
+        try:
+            row = conn.execute(
+                "SELECT status, pid FROM sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            pid = row["pid"] if row else None
+        except Exception:
+            row = conn.execute(
+                "SELECT status FROM sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            pid = None
         conn.close()
         state.close()
         if row:
             result["status"] = row["status"]
+            result["worker_pid"] = pid
+            result["worker_alive"] = _pid_alive(int(pid)) if pid is not None else False
             if row["status"] in ("failed", "error"):
                 result["verdict"] = "dead"
                 result["detail"] = f"session status={row['status']}"
@@ -254,18 +269,24 @@ def recover_sessions(root: str | Path | None = None) -> dict[str, Any]:
             _archive_session(session_id, root)
             actions.append({"session_id": session_id, "action": "archive"})
         elif verdict in ("stuck", "stale"):
-            # Orphans (no orchestrator DB record, no live process, no heartbeat)
-            # must be ARCHIVED, not restarted. Restarting them only spawns yet
-            # more phantom "running" workspaces, so the pile never drains and
-            # the parallel batch stays permanently expensive. A genuine stuck
-            # session still has a DB row (status "running"/"error"), so we only
-            # archive when the scan found no record at all.
-            if item.get("status") in (None, "", "unknown"):
-                _archive_session(session_id, root)
-                actions.append({"session_id": session_id, "action": "archive", "reason": "orphan_no_db_record"})
-            else:
+            # A session is only worth RESTARTING when a genuinely live worker
+            # process is still attached (DB status running AND pid alive).
+            # Orphans (no DB record) and PHANTOM sessions (DB row present but
+            # the worker pid is missing/dead) must both be ARCHIVED. Restarting
+            # a phantom only spawns yet another workspace, so the pile never
+            # drains and the parallel batch stays permanently expensive — the
+            # leak seen across prior cycles (104 -> 212 -> 224).
+            if item.get("worker_alive"):
                 restart = _restart_session(session_id, root)
                 actions.append(restart)
+            else:
+                reason = (
+                    "orphan_no_db_record"
+                    if item.get("status") in (None, "", "unknown")
+                    else "phantom_no_live_worker"
+                )
+                _archive_session(session_id, root)
+                actions.append({"session_id": session_id, "action": "archive", "reason": reason})
 
     return {"status": "recovered", "recovered": len(actions), "actions": actions}
 

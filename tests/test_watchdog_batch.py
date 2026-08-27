@@ -91,29 +91,21 @@ def test_recover_archives_orphan_without_db_record(tmp_path: Path) -> None:
     """A stale session with NO orchestrator DB record is an orphan and must be
     archived, not restarted. Restarting orphans spawns phantom workspaces that
     re-accumulate forever (the bug fixed in recover_sessions)."""
-    # No _setup_state call => status 'unknown' => orphan.
-    # Age must be >15min (so it's 'stale', not 'unknown') but <24h (so it's
-    # not 'zombie').
-    orphan_ts = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
-    _make_agent_dir(tmp_path, "orphan", notes_ts=orphan_ts, add_log=False)
+    _make_agent_dir(tmp_path, "orphan", add_log=False)
     with patch("scripts.watchdog_batch._run_watchdog") as mock_scan, patch(
-        "scripts.watchdog_batch._restart_session"
-    ) as mock_restart:
+        "scripts.watchdog_batch._check_single_agent"
+    ) as mock_check, patch("scripts.watchdog_batch._restart_session") as mock_restart:
         mock_scan.return_value = {
             "status": "stale",
             "stale": 1,
-            "items": [
-                {
-                    "session_id": "orphan",
-                    "agent_id": "orphan",
-                    "age_seconds": 100000,
-                    "status": "running",  # status from the raw scan
-                    "verdict": "stale",
-                    "detail": "session >15min with no log file",
-                    "pid": None,
-                    "log_gap_seconds": None,
-                }
-            ],
+            "items": [{"session_id": "orphan"}],
+        }
+        mock_check.return_value = {
+            "session_id": "orphan",
+            "verdict": "stale",
+            "status": "unknown",  # no DB record
+            "worker_alive": False,
+            "age_seconds": 100000,
         }
         report = recover_sessions(root=tmp_path)
     # The orphan workspace must be archived (moved under .archive), not restarted.
@@ -128,30 +120,24 @@ def test_recover_archives_orphan_without_db_record(tmp_path: Path) -> None:
 
 
 def test_recover_restarts_genuine_stuck_session(tmp_path: Path) -> None:
-    """A stale session that DOES have an orchestrator DB record is a genuine
-    stuck session and must still be restarted (not archived)."""
-    _setup_state(tmp_path, session_status="running", agent_id="stuck")
-    stuck_ts = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
-    _make_agent_dir(tmp_path, "stuck", notes_ts=stuck_ts, add_log=False)
+    """A stale session with a DB record AND a genuinely live worker must still
+    be restarted (not archived)."""
+    _make_agent_dir(tmp_path, "stuck", add_log=False)
     with patch("scripts.watchdog_batch._run_watchdog") as mock_scan, patch(
-        "scripts.watchdog_batch._restart_session"
-    ) as mock_restart:
+        "scripts.watchdog_batch._check_single_agent"
+    ) as mock_check, patch("scripts.watchdog_batch._restart_session") as mock_restart:
         mock_restart.return_value = {"session_id": "stuck", "action": "restart", "result": {}}
         mock_scan.return_value = {
             "status": "stale",
             "stale": 1,
-            "items": [
-                {
-                    "session_id": "stuck",
-                    "agent_id": "stuck",
-                    "age_seconds": 100000,
-                    "status": "running",
-                    "verdict": "stale",
-                    "detail": "session >15min with no log file",
-                    "pid": None,
-                    "log_gap_seconds": None,
-                }
-            ],
+            "items": [{"session_id": "stuck"}],
+        }
+        mock_check.return_value = {
+            "session_id": "stuck",
+            "verdict": "stale",
+            "status": "running",
+            "worker_alive": True,
+            "age_seconds": 100000,
         }
         report = recover_sessions(root=tmp_path)
     mock_restart.assert_called_once()
@@ -159,3 +145,36 @@ def test_recover_restarts_genuine_stuck_session(tmp_path: Path) -> None:
     assert report["actions"][0]["action"] == "restart"
     # Genuine session is NOT archived.
     assert (tmp_path / "runtime" / "workspace" / "stuck").exists()
+
+
+def test_recover_archives_phantom_running_session(tmp_path: Path) -> None:
+    """A stale session with a DB row but NO live worker (pid missing/dead) is a
+    PHANTOM and must be archived, not restarted. Restarting it only spawns
+    another workspace and the pile never drains (the leak seen across prior
+    cycles: 104 -> 212 -> 224 stale workspaces)."""
+    _make_agent_dir(tmp_path, "phantom", add_log=False)
+    with patch("scripts.watchdog_batch._run_watchdog") as mock_scan, patch(
+        "scripts.watchdog_batch._check_single_agent"
+    ) as mock_check, patch("scripts.watchdog_batch._restart_session") as mock_restart:
+        mock_scan.return_value = {
+            "status": "stale",
+            "stale": 1,
+            "items": [{"session_id": "phantom"}],
+        }
+        mock_check.return_value = {
+            "session_id": "phantom",
+            "verdict": "stale",
+            "status": "running",  # has a DB row...
+            "worker_alive": False,  # ...but no live worker
+            "age_seconds": 100000,
+        }
+        report = recover_sessions(root=tmp_path)
+    # A phantom must NOT be restarted (that re-accumulates the pile).
+    mock_restart.assert_not_called()
+    assert report["recovered"] == 1
+    action = report["actions"][0]
+    assert action["action"] == "archive"
+    assert action["reason"] == "phantom_no_live_worker"
+    # Workspace is drained out of runtime/workspace.
+    assert not (tmp_path / "runtime" / "workspace" / "phantom").exists()
+    assert (tmp_path / "runtime" / "workspace" / ".archive" / "phantom").exists()
