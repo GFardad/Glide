@@ -67,8 +67,17 @@ def test_check_single_agent_ok(tmp_path: Path) -> None:
 
 
 def test_run_parallel_health_checks_empty(tmp_path: Path) -> None:
-    with patch("scripts.watchdog_batch.Path") as mock_path:
-        mock_path.return_value = tmp_path
+    with patch("scripts.watchdog_batch._run_watchdog") as mock_scan:
+        mock_scan.return_value = {"status": "stale", "stale": 0, "items": []}
         report = run_parallel_health_checks(root=tmp_path)
     assert report["status"] == "ok"
+    assert report["checked"] == 0
+
+
+def test_run_parallel_health_checks_scan_error(tmp_path: Path) -> None:
+    """A failing/empty watchdog scan must surface as error, not be masked as ok."""
+    with patch("scripts.watchdog_batch._run_watchdog") as mock_scan:
+        mock_scan.return_value = {"status": "error", "stale": 0, "items": []}
+        report = run_parallel_health_checks(root=tmp_path)
+    assert report["status"] == "error"
     assert report["checked"] == 0

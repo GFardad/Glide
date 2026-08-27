@@ -12,6 +12,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+# Ensure the repo root (containing the `runtime` package) is importable even when
+# this script is launched without an inherited PYTHONPATH.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from runtime.logging import get_logger, log_event
 
 __all__ = ["run_parallel_health_checks", "main"]
@@ -23,6 +29,14 @@ _SESSION_MAX_AGE_SECONDS = 24 * 60 * 60  # sessions can live up to 24 hours
 
 def _run_watchdog() -> dict[str, Any]:
     script = Path(__file__).parent / "watchdog.py"
+    # Ensure the spawned watchdog can import the runtime package regardless of
+    # how this batch was launched (e.g. without an inherited PYTHONPATH).
+    repo_root = Path(__file__).resolve().parent.parent
+    env = dict(os.environ)
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        str(repo_root) + (os.pathsep + existing if existing else "")
+    )
     try:
         proc = subprocess.run(
             [sys.executable, str(script)],
@@ -30,9 +44,23 @@ def _run_watchdog() -> dict[str, Any]:
             text=True,
             check=False,
             timeout=120,
+            env=env,
         )
         if proc.stdout.strip():
-            return json.loads(proc.stdout)
+            try:
+                return json.loads(proc.stdout)
+            except json.JSONDecodeError:
+                log_event(
+                    _LOGGER,
+                    "watchdog_batch_scan_bad_output",
+                    {"stderr": proc.stderr.strip()[-500:]},
+                )
+        else:
+            log_event(
+                _LOGGER,
+                "watchdog_batch_scan_empty",
+                {"returncode": proc.returncode, "stderr": proc.stderr.strip()[-500:]},
+            )
     except Exception as exc:
         log_event(_LOGGER, "watchdog_batch_scan_failed", {"error": str(exc)})
     return {"status": "error", "stale": 0, "items": []}
@@ -155,9 +183,15 @@ def run_parallel_health_checks(root: str | Path | None = None, max_workers: int 
     """Scan sessions and run parallel health checks for stale ones."""
     root = Path(root) if root else Path(os.environ.get("GLIDELOOP_ROOT", "/home/gfardad/projects/glideloop"))
     scan = _run_watchdog()
-    stale = scan.get("items", []) if scan.get("status") == "stale" else []
-    if not stale:
-        return {"status": "ok", "checked": 0, "results": []}
+    # Surface scan failures honestly instead of masking them as "ok".
+    if scan.get("status") != "stale":
+        return {
+            "status": scan.get("status", "error"),
+            "checked": 0,
+            "results": [],
+            "verdicts": {},
+        }
+    stale = scan.get("items", [])
 
     session_ids = [item["session_id"] for item in stale if item.get("session_id")]
     results: list[dict[str, Any]] = []
@@ -249,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         report = run_parallel_health_checks()
     print(json.dumps(report, ensure_ascii=False))
-    return 1 if report.get("status") in ("stale", "recovered") else 0
+    return 1 if report.get("status") in ("stale", "recovered", "error") else 0
 
 
 if __name__ == "__main__":
