@@ -254,8 +254,18 @@ def recover_sessions(root: str | Path | None = None) -> dict[str, Any]:
             _archive_session(session_id, root)
             actions.append({"session_id": session_id, "action": "archive"})
         elif verdict in ("stuck", "stale"):
-            restart = _restart_session(session_id, root)
-            actions.append(restart)
+            # Orphans (no orchestrator DB record, no live process, no heartbeat)
+            # must be ARCHIVED, not restarted. Restarting them only spawns yet
+            # more phantom "running" workspaces, so the pile never drains and
+            # the parallel batch stays permanently expensive. A genuine stuck
+            # session still has a DB row (status "running"/"error"), so we only
+            # archive when the scan found no record at all.
+            if item.get("status") in (None, "", "unknown"):
+                _archive_session(session_id, root)
+                actions.append({"session_id": session_id, "action": "archive", "reason": "orphan_no_db_record"})
+            else:
+                restart = _restart_session(session_id, root)
+                actions.append(restart)
 
     return {"status": "recovered", "recovered": len(actions), "actions": actions}
 

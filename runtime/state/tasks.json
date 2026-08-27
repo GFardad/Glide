@@ -1,39 +1,23 @@
 [
   {
-    "id": "auto-1787846743-session_recovery",
+    "id": "auto-1787851302-session_recovery",
     "type": "session_recovery",
     "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Watchdog cycle found 452 abandoned sessions (404 zombie >24h, oldest ~182h; 48 stale >15min with no logs). All 404 zombies were archived via 'watchdog_batch.py --auto-recover'; all 48 stale were restarted via the MCP glideloop_run tool. Improvement: add a persistent auto-archive guard so any session workspace older than 24h is archived automatically on each wakeup, preventing re-accumulation of hundreds of dead zombie workspaces and keeping the parallel watchdog batch cheap. Verify with 'watchdog_batch.py'.",
+      "objective": "Watchdog batch found 212 sessions, ALL flagged 'stale' (status=running, no log file >15min, pid=null) with NO orchestrator DB record and empty logs/ — orphaned phantom 'running' workspaces. Root cause: recover_sessions() RESTARTED these orphans (spawning fresh glideloop_run workspaces) instead of archiving them, so the pile re-accumulated every cycle (prior cycles saw 452 then 104 then 212). Fix applied in scripts/watchdog_batch.py: recover_sessions now ARCHIVES orphan sessions (no DB record) rather than restarting, so a --auto-recover run drains them permanently. Verify: 'python3 scripts/watchdog_batch.py --auto-recover' then 'python3 scripts/watchdog_batch.py' should converge to stale=0.",
       "source": "ceo-wakeup-loop",
       "verdicts": {
-        "zombie": 404,
-        "stale": 48,
-        "checked": 452
-      },
-      "action_taken": "auto-recover executed this cycle (zombies archived, stale restarted)",
-      "injected_at": 1787846743
-    },
-    "created_at": 1787846743
-  },
-  {
-    "id": "auto-1787848923-session_recovery",
-    "type": "session_recovery",
-    "command": "python3 scripts/watchdog_batch.py",
-    "cwd": "/home/gfardad/projects/glideloop",
-    "context": {
-      "objective": "Watchdog cycle found 104 stale sessions (all checked=104, stale=104), every one flagged 'session >15min with no log file'. auto-recover restarted all 104 via the MCP glideloop_run tool (exit_code 0, started=true) but the staleness reappears next cycle because the root cause is unlogged workspaces with old mtimes accumulating in runtime/workspace. Improvement: add a persistent auto-guard so any workspace without a heartbeat log older than 15min is archived automatically each wakeup (and cleaned from the parallel health check), preventing re-accumulation of hundreds of stale entries and keeping watchdog_batch cheap. Verify with 'watchdog_batch.py' returning stale=0.",
-      "source": "ceo-wakeup-loop",
-      "verdicts": {
-        "stale": 104,
-        "checked": 104,
+        "stale": 212,
+        "checked": 212,
         "dead": 0,
-        "zombie": 0
+        "zombie": 0,
+        "ok": 0,
+        "unknown": 0
       },
-      "action_taken": "auto-recover executed this cycle (all 104 stale sessions restarted)",
-      "injected_at": 1787848923
+      "action_taken": "code fix applied (archive orphans instead of restart); session_recovery task re-injected with authoritative scan",
+      "injected_at": 1787851302
     },
-    "created_at": 1787848923
+    "created_at": 1787851302
   }
 ]
