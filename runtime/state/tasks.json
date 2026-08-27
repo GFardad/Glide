@@ -1,6 +1,6 @@
 [
   {
-    "id": "auto-1787867419-session_recovery",
+    "id": "auto-1787869324-session_recovery",
     "type": "session_recovery",
     "command": "python3 scripts/watchdog_batch.py --auto-recover",
     "cwd": "/home/gfardad/projects/glideloop",
@@ -11,8 +11,8 @@
         "stale": 4
       },
       "action_taken": "drained via --auto-recover; converged to stale=0",
-      "injected_at": 1787867419
+      "injected_at": 1787869324
     },
-    "created_at": 1787867419
+    "created_at": 1787869324
   }
 ]
