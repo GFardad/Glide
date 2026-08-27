@@ -67,18 +67,31 @@ def _session_age_seconds(created_at: str) -> float:
         return 0.0
 
 
-def check_agent_health(agent_dir: Path, root: Path) -> SessionHealth:
-    session_id = agent_dir.name
-    agent_id = agent_dir.name
-    created_at = datetime.now(timezone.utc).isoformat()
-    age_seconds = 0.0
+def _parse_iso(ts: str) -> float | None:
+    """Return the epoch seconds for an ISO-8601 string, or None if unparseable."""
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
 
+
+def resolve_session_created_at(agent_dir: Path) -> str:
+    """Best-effort session creation timestamp (ISO-8601, UTC).
+
+    Sessions created by different code paths record their start time in
+    different places: a leading ISO line in GOAL.md, or a ``## <ts>`` heading in
+    NOTES.md. When neither yields a parseable timestamp we fall back to the
+    directory's filesystem mtime, so staleness detection still works for
+    sessions that were created without explicit metadata. Falling back to
+    ``now`` here would make every session look brand-new and blind the
+    watchdog into reporting a permanent "ok".
+    """
     goal_md = agent_dir / "GOAL.md"
     if goal_md.exists():
         try:
-            first = goal_md.read_text(encoding="utf-8").splitlines()[0]
-            if first.startswith("# Goal"):
-                created_at = first.split("\n", 1)[0]
+            first = goal_md.read_text(encoding="utf-8").splitlines()[0].strip()
+            if _parse_iso(first) is not None:
+                return first
         except Exception:
             pass
 
@@ -88,11 +101,28 @@ def check_agent_health(agent_dir: Path, root: Path) -> SessionHealth:
             for line in notes_md.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
                 if line.startswith("## "):
-                    created_at = line[3:].strip()
+                    cand = line[3:].strip()
+                    if _parse_iso(cand) is not None:
+                        return cand
                     break
         except Exception:
             pass
 
+    # Fallback: directory mtime (prefer GOAL.md mtime as a proxy for creation).
+    try:
+        mtime = (agent_dir / "GOAL.md").stat().st_mtime
+    except Exception:
+        try:
+            mtime = agent_dir.stat().st_mtime
+        except Exception:
+            mtime = time.time()
+    return datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+
+
+def check_agent_health(agent_dir: Path, root: Path) -> SessionHealth:
+    session_id = agent_dir.name
+    agent_id = agent_dir.name
+    created_at = resolve_session_created_at(agent_dir)
     age_seconds = _session_age_seconds(created_at)
     status = "running"
     pid = None
@@ -181,7 +211,16 @@ class SessionWatchdog:
         if not self.workspace_dir.exists():
             return results
 
-        agent_dirs = [p for p in self.workspace_dir.iterdir() if p.is_dir()]
+        # Skip non-session directories that live alongside real sessions
+        # (e.g. aggregated "agents"/"artifacts"/"logs" dirs, and the ".archive"
+        # holding for recovered sessions). They would otherwise be mis-scanned
+        # as sessions with no metadata and falsely flagged.
+        _NON_SESSION = {"agents", "artifacts", "logs", ".archive"}
+        agent_dirs = [
+            p
+            for p in self.workspace_dir.iterdir()
+            if p.is_dir() and p.name not in _NON_SESSION
+        ]
         with ThreadPoolExecutor(max_workers=min(32, len(agent_dirs) or 1)) as pool:
             futures = {pool.submit(check_agent_health, d, self.root): d for d in agent_dirs}
             for future in as_completed(futures):

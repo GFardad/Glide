@@ -17,6 +17,7 @@ from runtime.meta.watchdog.session_watchdog import (
     SessionWatchdog,
     check_agent_health,
     main,
+    resolve_session_created_at,
     _SESSION_MAX_AGE_SECONDS,
     _MAX_WORKER_AGE_SECONDS,
 )
@@ -72,6 +73,35 @@ def test_check_agent_health_ok(tmp_path: Path) -> None:
     result = check_agent_health(agent_dir, tmp_path)
     assert result.verdict == "ok"
     assert result.status == "running"
+
+
+def test_resolve_created_at_falls_back_to_mtime(tmp_path: Path) -> None:
+    """Regression: sessions with no embedded timestamp must age from mtime.
+
+    Production sessions ship with an empty NOTES.md and a GOAL.md whose first
+    line is ``# Goal`` (a label, not an ISO timestamp). The old code fell back
+    to ``now`` in that case, forcing age_seconds=0 and reporting every session
+    as "ok" forever -- a blind watchdog. The resolver must instead fall back to
+    the directory/GOAL.md mtime so staleness is detected.
+    """
+    import os
+    import time
+
+    agent_dir = tmp_path / "agent-nometa"
+    agent_dir.mkdir()
+    # Real-world shape: "# Goal" header, no timestamp; empty NOTES.md.
+    (agent_dir / "GOAL.md").write_text("# Goal\n\nbuild auth\n", encoding="utf-8")
+    (agent_dir / "NOTES.md").write_text("", encoding="utf-8")
+    # Backdate the directory so it is clearly older than the 24h zombie window.
+    old = time.time() - (_SESSION_MAX_AGE_SECONDS + 3600)
+    os.utime(agent_dir / "GOAL.md", (old, old))
+
+    created_at = resolve_session_created_at(agent_dir)
+    health = check_agent_health(agent_dir, tmp_path)
+    # Not zero; old enough to be a zombie.
+    assert health.age_seconds > _SESSION_MAX_AGE_SECONDS
+    assert health.verdict == "zombie"
+    assert created_at  # non-empty ISO string
 
 
 def test_check_agent_health_stale_no_logs(tmp_path: Path) -> None:

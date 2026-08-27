@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": "auto-1787844843-session_recovery",
+    "type": "session_recovery",
+    "command": "python3 scripts/watchdog_batch.py --auto-recover",
+    "cwd": "/home/gfardad/projects/glideloop",
+    "context": {
+      "objective": "Recover 440 abandoned sessions surfaced by the (now-fixed) watchdog: 404 zombie (>24h, oldest ~182h) and 36 stale (>15min, no logs). None tracked in glideloop_orchestrator.sqlite and no live worker PID, so all are safe to archive via watchdog_batch --auto-recover. Root cause fixed in runtime/meta/watchdog/session_watchdog.py (created_at now falls back to mtime instead of 'now', which had blinded the watchdog into reporting a permanent 'ok').",
+      "source": "ceo-wakeup-loop",
+      "verdicts": {"zombie": 404, "stale": 36, "checked": 440},
+      "injected_at": 1787844843
+    },
+    "created_at": 1787844843
+  }
+]

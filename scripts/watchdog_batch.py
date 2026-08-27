@@ -88,23 +88,11 @@ def _check_single_agent(session_id: str, root: Path) -> dict[str, Any]:
     logs_dir = workspace / "logs"
     events_log = logs_dir / "events.jsonl"
 
-    created_at = None
-    if goal.exists():
-        try:
-            created_at = goal.read_text(encoding="utf-8").splitlines()[0]
-        except Exception:
-            pass
-    if notes.exists():
-        try:
-            for line in notes.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith("## "):
-                    created_at = line[3:].strip()
-                    break
-        except Exception:
-            pass
-    if created_at is None:
-        created_at = "2026-08-08T09:00:00Z"
+    # Reuse the same creation-time resolution as the main watchdog so the
+    # parallel batch and the single-scan never disagree on staleness.
+    from runtime.meta.watchdog.session_watchdog import resolve_session_created_at
+
+    created_at = resolve_session_created_at(workspace)
 
     try:
         from datetime import datetime, timezone
