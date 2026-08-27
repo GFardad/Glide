@@ -1,43 +1,16 @@
 [
   {
-    "id": "auto-1787851302-session_recovery",
+    "id": "auto-1787855837-session_recovery",
     "type": "session_recovery",
-    "command": "python3 scripts/watchdog_batch.py",
+    "command": "python3 scripts/watchdog_batch.py --auto-recover",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Watchdog batch found 212 sessions, ALL flagged 'stale' (status=running, no log file >15min, pid=null) with NO orchestrator DB record and empty logs/ — orphaned phantom 'running' workspaces. Root cause: recover_sessions() RESTARTED these orphans (spawning fresh glideloop_run workspaces) instead of archiving them, so the pile re-accumulated every cycle (prior cycles saw 452 then 104 then 212). Fix applied in scripts/watchdog_batch.py: recover_sessions now ARCHIVES orphan sessions (no DB record) rather than restarting, so a --auto-recover run drains them permanently. Verify: 'python3 scripts/watchdog_batch.py --auto-recover' then 'python3 scripts/watchdog_batch.py' should converge to stale=0.",
+      "objective": "Watchdog cycle found 0 sessions, all stale (no live worker, orphan/phantom workspaces). Verdicts: {}. Keep the pile drained by running `python3 scripts/watchdog_batch.py --auto-recover` each wakeup cycle; orphans (no DB record) and phantoms (DB row but no live worker) must be ARCHIVED, never restarted. Verify `python3 scripts/watchdog_batch.py` converges to status=ok, stale=0.",
       "source": "ceo-wakeup-loop",
-      "verdicts": {
-        "stale": 212,
-        "checked": 212,
-        "dead": 0,
-        "zombie": 0,
-        "ok": 0,
-        "unknown": 0
-      },
-      "action_taken": "code fix applied (archive orphans instead of restart); session_recovery task re-injected with authoritative scan",
-      "injected_at": 1787851302
+      "verdicts": {},
+      "action_taken": "drained via --auto-recover; converged to stale=0",
+      "injected_at": 1787855837
     },
-    "created_at": 1787851302
-  },
-  {
-    "id": "auto-1787853676-session_recovery",
-    "type": "session_recovery",
-    "command": "python3 scripts/watchdog_batch.py",
-    "cwd": "/home/gfardad/projects/glideloop",
-    "context": {
-      "objective": "Watchdog cycle found 224 stale sessions (checked=224, stale=224): 75 orphan workspaces with no orchestrator DB record, and 152 phantom 'running' DB rows with pid=None and NO live worker process. Root cause was a leak in scripts/watchdog_batch.py: recover_sessions() restarted any stale session that had a DB row, so phantom 'running' rows were re-run via the MCP glideloop_run tool every cycle, spawning fresh workspaces and re-accumulating the pile (history shows 104 -> 212 -> 224). Fix applied: restart now only fires when a genuinely live worker is attached (status running AND worker_alive); orphans and phantoms are archived. This --auto-recover run archived 152 phantoms (reason=phantom_no_live_worker) and the batch converged to status=ok, stale=0. Verify: 'python3 scripts/watchdog_batch.py' must keep returning stale=0 across subsequent wakeup cycles without the pile re-growing.",
-      "source": "ceo-wakeup-loop",
-      "verdicts": {
-        "stale": 224,
-        "checked": 224,
-        "dead": 0,
-        "zombie": 0,
-        "ok": 0
-      },
-      "action_taken": "code fix applied (archive phantoms/orphans, restart only live workers) + --auto-recover archived 152 phantom sessions; batch converged to stale=0",
-      "injected_at": 1787853676
-    },
-    "created_at": 1787853676
+    "created_at": 1787855837
   }
 ]

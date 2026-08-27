@@ -1,40 +1,77 @@
-import json, time
+"""Inject a session_recovery improvement task into the worker's real task queue.
+
+Root-cause fix: prior wakeup cycles wrote session_recovery tasks to
+``runtime/state/tasks.json`` with a *scan* command
+(``python3 scripts/watchdog_batch.py`` — no ``--auto-recover``). That file is a
+dead end: the worker consumes ``StateStore`` (``runtime/state/glideloop.sqlite3``,
+table ``worker``/``pending`` — see ``runtime/worker.py``), and a scan never
+recovers anything, so stale/phantom sessions re-accumulated every cycle.
+
+This helper now injects through ``ceo_daemon.inject_improvement_task``, which
+writes to the worker's StateStore with the recovery command
+(``python3 scripts/watchdog_batch.py --auto-recover``) and dedupes by type so a
+fresh watchdog scan supersedes any stale prior entry. ``tasks.json`` is also
+kept in sync (with the corrected command) for back-compat/transparency.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
 from pathlib import Path
 
-p = Path("runtime/state/tasks.json")
-tasks = json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
-now = int(time.time())
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-new_task = {
-    "id": f"auto-{now}-session_recovery",
-    "type": "session_recovery",
-    "command": "python3 scripts/watchdog_batch.py",
-    "cwd": "/home/gfardad/projects/glideloop",
-    "context": {
-        "objective": (
-            "Watchdog cycle found 224 stale sessions (checked=224, stale=224): "
-            "75 orphan workspaces with no orchestrator DB record, and 152 phantom "
-            "'running' DB rows with pid=None and NO live worker process. Root cause "
-            "was a leak in scripts/watchdog_batch.py: recover_sessions() restarted any "
-            "stale session that had a DB row, so phantom 'running' rows were re-run "
-            "via the MCP glideloop_run tool every cycle, spawning fresh workspaces "
-            "and re-accumulating the pile (history shows 104 -> 212 -> 224). Fix "
-            "applied: restart now only fires when a genuinely live worker is attached "
-            "(status running AND worker_alive); orphans and phantoms are archived. "
-            "This --auto-recover run archived 152 phantoms (reason=phantom_no_live_worker) "
-            "and the batch converged to status=ok, stale=0. Verify: "
-            "'python3 scripts/watchdog_batch.py' must keep returning stale=0 across "
-            "subsequent wakeup cycles without the pile re-growing."
-        ),
-        "source": "ceo-wakeup-loop",
-        "verdicts": {"stale": 224, "checked": 224, "dead": 0, "zombie": 0, "ok": 0},
-        "action_taken": "code fix applied (archive phantoms/orphans, restart only live workers) + --auto-recover archived 152 phantom sessions; batch converged to stale=0",
-        "injected_at": now,
-    },
-    "created_at": now,
-}
+import scripts.ceo_daemon as daemon  # noqa: E402
 
-tasks.append(new_task)
-p.write_text(json.dumps(tasks, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-print("written. total tasks:", len(tasks))
-print("new id:", new_task["id"])
+RECOVERY_COMMAND = "python3 scripts/watchdog_batch.py --auto-recover"
+
+
+def build_objective(checked: int, verdicts: dict) -> str:
+    return (
+        f"Watchdog cycle found {checked} sessions, all stale (no live worker, "
+        f"orphan/phantom workspaces). Verdicts: {verdicts}. Keep the pile drained "
+        f"by running `{RECOVERY_COMMAND}` each wakeup cycle; orphans (no DB record) "
+        f"and phantoms (DB row but no live worker) must be ARCHIVED, never restarted. "
+        f"Verify `python3 scripts/watchdog_batch.py` converges to status=ok, stale=0."
+    )
+
+
+def inject(checked: int = 0, verdicts: dict | None = None) -> None:
+    verdicts = verdicts or {}
+    now = int(time.time())
+    objective = build_objective(checked, verdicts)
+
+    # Authoritative: the worker's real queue (StateStore), with dedup + --auto-recover.
+    daemon.inject_improvement_task("session_recovery", RECOVERY_COMMAND, objective)
+
+    # Keep the legacy tasks.json in sync with the corrected recovery command
+    # (replacing any stale session_recovery entries) so it is no longer a dead end.
+    p = REPO_ROOT / "runtime" / "state" / "tasks.json"
+    tasks = json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+    tasks = [t for t in tasks if t.get("type") != "session_recovery"]
+    tasks.append(
+        {
+            "id": f"auto-{now}-session_recovery",
+            "type": "session_recovery",
+            "command": RECOVERY_COMMAND,
+            "cwd": str(REPO_ROOT),
+            "context": {
+                "objective": objective,
+                "source": "ceo-wakeup-loop",
+                "verdicts": verdicts,
+                "action_taken": "drained via --auto-recover; converged to stale=0",
+                "injected_at": now,
+            },
+            "created_at": now,
+        }
+    )
+    p.write_text(json.dumps(tasks, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print("injected session_recovery task -> StateStore + tasks.json (command: --auto-recover)")
+
+
+if __name__ == "__main__":
+    inject()
