@@ -1,20 +1,18 @@
 [
   {
-    "id": "auto-1787901617-session_recovery",
+    "id": "auto-1787903548-session_recovery",
     "type": "session_recovery",
     "command": "python3 scripts/watchdog_batch.py --auto-recover",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Watchdog cycle found 3 sessions, 3 stale/orphan needing attention (verdicts: {'stale': 3}). Re-run `python3 scripts/watchdog_batch.py --auto-recover` each wakeup cycle to keep the pile drained: orphans (no DB record) and phantoms (DB row but no live worker) must be ARCHIVED, never restarted. Verify `python3 scripts/watchdog_batch.py` returns status=ok, stale=0. Last observed status=stale.",
+      "objective": "Watchdog cycle found 0 sessions, 0 stale/orphan needing attention (verdicts: {}). Re-run `python3 scripts/watchdog_batch.py --auto-recover` each wakeup cycle to keep the pile drained: orphans (no DB record) and phantoms (DB row but no live worker) must be ARCHIVED, never restarted. Verify `python3 scripts/watchdog_batch.py` returns status=ok, stale=0. Last observed status=ok.",
       "source": "ceo-wakeup-loop",
-      "verdicts": {
-        "stale": 3
-      },
-      "status": "stale",
-      "checked": 3,
-      "stale": 3,
-      "injected_at": 1787901617
+      "verdicts": {},
+      "status": "ok",
+      "checked": 0,
+      "stale": 0,
+      "injected_at": 1787903548
     },
-    "created_at": 1787901617
+    "created_at": 1787903548
   }
 ]
