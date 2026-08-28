@@ -1,18 +1,23 @@
 [
   {
-    "id": "auto-1787909600-session_recovery",
+    "id": "auto-1787911492-session_recovery",
     "type": "session_recovery",
-    "command": "python3 scripts/watchdog_batch.py --auto-recover",
+    "command": "python3 scripts/watchdog_batch.py",
     "cwd": "/home/gfardad/projects/glideloop",
     "context": {
-      "objective": "Watchdog cycle found 0 sessions, 0 stale/orphan needing attention (verdicts: {}). Re-run `python3 scripts/watchdog_batch.py --auto-recover` each wakeup cycle to keep the pile drained: orphans (no DB record) and phantoms (DB row but no live worker) must be ARCHIVED, never restarted. Verify `python3 scripts/watchdog_batch.py` returns status=ok, stale=0. Last observed status=ok.",
+      "objective": "Watchdog cycle 1787911492 found 3 stale sessions (verdicts: {'stale': 3}): 98f1b293-7e36-40a5-a140-25222e4aac8e, a308654e-71ac-4a15-8119-23ebdab40452, 63d3d84d-0187-49e1-a856-35e13f9338b1 — each age ~1892s (>31min) with no log file and no live worker (worker_alive=false). Per recovery policy, sessions without a live worker must be ARCHIVED, never restarted. Run `python3 scripts/watchdog_batch.py --auto-recover` to archive the orphans/phantoms, then re-run `python3 scripts/watchdog_batch.py` and confirm status=ok, stale=0. Keep draining each wakeup cycle.",
       "source": "ceo-wakeup-loop",
-      "verdicts": {},
-      "status": "ok",
-      "checked": 0,
-      "stale": 0,
-      "injected_at": 1787909600
+      "verdicts": {"stale": 3},
+      "status": "stale",
+      "checked": 3,
+      "stale": 3,
+      "stale_sessions": [
+        "98f1b293-7e36-40a5-a140-25222e4aac8e",
+        "a308654e-71ac-4a15-8119-23ebdab40452",
+        "63d3d84d-0187-49e1-a856-35e13f9338b1"
+      ],
+      "injected_at": 1787911492
     },
-    "created_at": 1787909600
+    "created_at": 1787911492
   }
 ]
