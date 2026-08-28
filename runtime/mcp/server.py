@@ -463,8 +463,12 @@ def _dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
         started = False
         try:
             from pathlib import Path
+            from runtime.glideloop_orchestrator.config import OrchestratorConfig
             from runtime.glideloop_orchestrator.state import OrchestratorState
-            db_path = Path(__file__).resolve().parent.parent / "state" / "glideloop_orchestrator.sqlite"
+            # Derive the DB path from the single source of truth
+            # (OrchestratorConfig) instead of recomputing it inline, so the
+            # production path and every other caller stay consistent.
+            db_path = OrchestratorConfig().state_dir / "glideloop_orchestrator.sqlite"
             state = OrchestratorState(db_path=db_path)
             conn = state.connect()
             started = conn.execute(

@@ -18,10 +18,44 @@ def test_handle_glideloop_status():
     assert "counters" in payload
 
 
-def test_handle_glideloop_run():
-    payload = json.loads(handle_tool("glideloop_run", {"objective": "build auth", "mode": "hybrid"}))
+def test_handle_glideloop_run(tmp_path, monkeypatch):
+    # This tool drives the REAL orchestrator, which creates a session workspace
+    # and a DB row. Run it against an isolated root so it never pollutes the
+    # live runtime/workspace/ that the production watchdog scans -- a leaked
+    # workspace there would be flagged as a stale/orphan session every cycle.
+    monkeypatch.setenv("GLIDELOOP_ROOT", str(tmp_path))
+    import runtime.glideloop_orchestrator.session as session_mod
+    from runtime.glideloop_orchestrator.config import OrchestratorConfig
+
+    # Session.start() reads a module-global _CONFIG captured at import time
+    # (pointing at the real repo). Rebind it to the isolated root so the
+    # workspace and orchestrator DB are written under tmp_path, not the repo.
+    # monkeypatch.setattr auto-restores the global after the test.
+    monkeypatch.setattr(session_mod, "_CONFIG", OrchestratorConfig())
+
+    # Guard: this test run must not add any workspace to the live
+    # runtime/workspace/ (it should write under tmp_path instead). Snapshot the
+    # directory BEFORE so we only flag leakage caused by this invocation, not
+    # pre-existing orphans from earlier runs.
+    live_ws = Path("/home/gfardad/projects/glideloop/runtime/workspace")
+    _LEAF_DIRS = {"agents", "artifacts", "logs"}
+
+    def _live_sessions() -> set[str]:
+        return {
+            p.name
+            for p in live_ws.iterdir()
+            if p.is_dir() and p.name != ".archive" and p.name not in _LEAF_DIRS
+        }
+
+    before = _live_sessions()
+    payload = json.loads(
+        handle_tool("glideloop_run", {"objective": "build auth", "mode": "hybrid"})
+    )
     assert payload["exit_code"] == 0
     assert payload["objective"] == "build auth"
+    after = _live_sessions()
+    leaked = after - before
+    assert not leaked, f"glideloop_run leaked workspaces into live dir: {leaked}"
 
 
 def test_handle_glideloop_stop():
