@@ -87,6 +87,40 @@ def test_run_parallel_health_checks_scan_error(tmp_path: Path) -> None:
     assert report["checked"] == 0
 
 
+def test_unknown_verdict_falls_back_to_scan_verdict(tmp_path: Path) -> None:
+    """If per-agent refinement fails to classify a session (verdict 'unknown'),
+    the batch must inherit the scan-level verdict so the session stays
+    actionable and gets drained by --auto-recover, instead of leaking as an
+    unrecoverable 'unknown' (the silent gap observed during a cold CEO run)."""
+    stale_items = [
+        {
+            "session_id": "orphan",
+            "verdict": "stale",
+            "detail": "session >15min with no log file",
+            "age_seconds": 100000.0,
+            "status": "running",
+        }
+    ]
+    with patch("scripts.watchdog_batch._run_watchdog") as mock_scan, patch(
+        "scripts.watchdog_batch._check_single_agent"
+    ) as mock_check:
+        mock_scan.return_value = {"status": "stale", "stale": 1, "items": stale_items}
+        # Single-agent refinement returns the unclassified default.
+        mock_check.return_value = {
+            "session_id": "orphan",
+            "verdict": "unknown",
+            "detail": "",
+            "age_seconds": 0.0,
+            "status": "unknown",
+        }
+        report = run_parallel_health_checks(root=tmp_path)
+    assert report["verdicts"].get("stale") == 1
+    res = report["results"][0]
+    assert res["verdict"] == "stale"
+    assert res["verdict_source"] == "scan_fallback"
+    assert res["age_seconds"] == 100000.0
+
+
 def test_recover_archives_orphan_without_db_record(tmp_path: Path) -> None:
     """A stale session with NO orchestrator DB record is an orphan and must be
     archived, not restarted. Restarting orphans spawns phantom workspaces that

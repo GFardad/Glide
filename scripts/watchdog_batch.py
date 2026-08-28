@@ -202,10 +202,35 @@ def run_parallel_health_checks(root: str | Path | None = None, max_workers: int 
         futures = {pool.submit(_check_single_agent, sid, root): sid for sid in session_ids}
         for future in as_completed(futures):
             try:
-                results.append(future.result())
+                item_result = future.result()
             except Exception as exc:
                 sid = futures[future]
-                results.append({"session_id": sid, "verdict": "error", "detail": str(exc)})
+                item_result = {"session_id": sid, "verdict": "error", "detail": str(exc)}
+
+            # The single-scan already produced a defensible verdict for this
+            # session. If the per-agent refinement failed to classify it
+            # (verdict "unknown" or "error") we must NOT let it fall into an
+            # unrecoverable bucket: recover_sessions only acts on
+            # zombie/dead/stuck/stale, so an "unknown" would be reported every
+            # cycle yet never drained (silent leak). Inherit the scan verdict so
+            # stale sessions stay actionable.
+            scan_item = next(
+                (it for it in stale if it.get("session_id") == item_result.get("session_id")),
+                {},
+            )
+            if item_result.get("verdict") in ("unknown", "error"):
+                item_result["verdict"] = scan_item.get("verdict", "stale")
+                item_result["detail"] = scan_item.get("detail", "") or item_result.get("detail", "")
+                # The scan-level age is the trustworthy staleness signal when
+                # per-agent refinement produced a default (0.0). Override it
+                # unless the refinement genuinely measured a non-zero age.
+                if not item_result.get("age_seconds"):
+                    item_result["age_seconds"] = scan_item.get("age_seconds", 0.0)
+                if not item_result.get("status"):
+                    item_result["status"] = scan_item.get("status", "unknown")
+                item_result["verdict_source"] = "scan_fallback"
+
+            results.append(item_result)
 
     results.sort(key=lambda r: r.get("age_seconds", 0), reverse=True)
     verdict_counts: dict[str, int] = {}
